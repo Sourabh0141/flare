@@ -80,7 +80,7 @@ The primary motivation is demonstrating technical capability to a curated audien
 - **R35.** When building the LLM context window, the API Worker includes: any existing summary message first, then remaining non-summary messages, capped at the model's safe context limit.
 
 #### 3D Character
-- **R36.** The 3D character is an RPM avatar with a robotic/metallic stylized skin (no organic hair, glowing or geometric eyes, robotic proportions) rendered using `@readyplayerme/visage` (React Three Fiber + Three.js) in the browser.
+- **R36.** The 3D character is a stylized full-body GLB avatar (futuristic outfit, 67-joint humanoid rig, 67 morph targets including all 15 ARKit `viseme_` targets) rendered using `avatoon` (React Three Fiber + Three.js + Drei) in the browser. Sourced from Wawa Sensei's open-source R3F avatar repository, the asset is pre-baked with all ARKit visemes and animations, requiring no Blender processing, and is served via Cloudflare R2 / CDN.
 - **R37.** The character transitions between four states: **idle** (breathing/floating idle loop), **listening** (subtle reaction while PTT is held), **processing** (thinking animation), **speaking** (lip-sync animation active).
 - **R38.** During speaking state, the browser plays the audio through the Web Audio API. An `AnalyserNode` reads FFT frequency data in real time, maps it to ARKit viseme weights, and updates the avatar's blend shape morph targets each animation frame.
 - **R39.** The idle animation includes continuous subtle motion (e.g., gentle floating, eye blinks, head micro-movements). Random idle behaviors (e.g., head tilt, glance, posture shift) trigger at unpredictable intervals.
@@ -99,8 +99,8 @@ The primary motivation is demonstrating technical capability to a curated audien
 - **Voice-only input in V1 (no text).** Text input is explicitly deferred to preserve the character-first impression. (session-settled: user-directed — chosen over voice+text).
 - **Sequential conversation pipeline: LLM completes → TTS → audio plays.** Streaming-per-sentence TTS is deferred for simplicity. (session-settled: user-approved — chosen over streaming-per-sentence).
 - **HTTP per conversation turn (no WebSocket in V1).** One HTTP request per turn: browser POSTs audio, backend returns audio response. (session-settled: user-approved).
-- **Ready Player Me (RPM) avatar with robotic skin, using @readyplayerme/visage.** This provides the most reliable browser-based lip-sync using 52 ARKit viseme morph targets. (session-settled: user-approved). (Governs R36)
-- **Lip-sync driven by browser-side Web Audio API viseme analysis.** Browser analyzes the audio stream via `AnalyserNode` FFT to infer viseme weights. (session-settled: user-directed). (Governs R38)
+- **Stylized full-body GLB avatar with ARKit viseme morph targets, rendered using `avatoon`.** Ready Player Me was shut down on January 31, 2026 (acquired by Netflix). `avatoon` is an MIT-licensed, actively maintained React Three Fiber component that renders any GLB asset with ARKit `viseme_` morph targets — the same naming convention the plan's lip-sync approach requires. Sourced from Wawa Sensei's open-source R3F avatar repository ([github.com/wass08/r3f-virtual-girlfriend-frontend](https://github.com/wass08/r3f-virtual-girlfriend-frontend), `64f1a714fe61576b46f27ca2.glb`, saved in repo as `models/avatar.glb`), this verified full-body avatar includes 67 skeletal joints and 67 morph targets (all 15 ARKit visemes) plus a companion animation set (`animations.glb`). Additional compatible animations can be sourced directly from the official Ready Player Me Animation Library ([github.com/readyplayerme/animation-library](https://github.com/readyplayerme/animation-library) / [GLB collection](https://github.com/crazyramirez/babylonjs-ReadyPlayerMe-Animation-Combiner)) or Adobe Mixamo ([mixamo.com](https://www.mixamo.com)). Because all shape keys and rigs are pre-baked, no Blender processing or 3D modeling is required. The avatar GLB is hosted on R2 and served via CDN. (session-settled: updated from RPM — verified plug-and-play asset with pre-baked ARKit visemes). (Governs R36)
+- **Lip-sync driven by browser-side Web Audio API viseme analysis.** Browser analyzes the audio stream via `AnalyserNode` FFT to infer viseme weights, driving the avatar's ARKit `viseme_` blend shapes via `avatoon`'s morph target controls. (session-settled: user-directed). (Governs R38)
 - **All conversation messages stored in D1; audio is ephemeral.** (Governs R27)
 - **Summarization triggers at 20 messages: oldest half summarized.** (Governs R33, R34)
 - **Terraform state in R2 using S3-compatible backend.** (session-settled: user-directed). (Governs R42)
@@ -147,7 +147,8 @@ The primary motivation is demonstrating technical capability to a curated audien
 ### Sources and Research
 - Cloudflare Workers Free tier limits (10ms CPU limit excludes fetch wait time).
 - DeepInfra TTS (`/v1/text-to-speech/{voice_id}/stream`), Whisper ASR multipart upload, LLM completions.
-- `@readyplayerme/visage` for React Three Fiber ARKit viseme morph targets.
+- `avatoon` for React Three Fiber ARKit viseme morph-target rendering (replaces `@readyplayerme/visage`, which is abandoned following RPM's shutdown on January 31, 2026).
+- 3D Avatar Asset & Animations — Pre-rigged full-body GLB avatar with 67 ARKit blendshapes and companion animation suite. Sourced from Wawa Sensei's open-source React Three Fiber companion project: [github.com/wass08/r3f-virtual-girlfriend-frontend](https://github.com/wass08/r3f-virtual-girlfriend-frontend) (`public/models/64f1a714fe61576b46f27ca2.glb` and `public/models/animations.glb`).
 - Web Audio API `AnalyserNode` for FFT analysis.
 - Cloudflare R2 S3-compatible Terraform backend.
 
@@ -302,17 +303,16 @@ The primary motivation is demonstrating technical capability to a curated audien
 **Verification:** Unauthenticated users are forced to sign in. The sidebar correctly displays, updates, and deletes conversations.
 
 ### U8. Frontend - 3D Character and Lip-Sync
-**Goal:** Render the Ready Player Me avatar with idle and speaking animations driven by audio.
+**Goal:** Render the stylized full-body GLB avatar with idle and speaking animations driven by audio.
 **Requirements:** R9, R36, R37, R38, R39
 **Dependencies:** U7
 **Files:**
 - `apps/web/src/components/AvatarCanvas.tsx`
 - `apps/web/src/hooks/useVisage.ts`
 **Approach:**
-- Use `@readyplayerme/visage` in a React Three Fiber `<Canvas>`.
-- Load the stylized glTF from the public R2 bucket.
+- Use `avatoon` in a React Three Fiber `<Canvas>` to render the verified full-body GLB asset (`avatar.glb` with companion `animations.glb`) loaded from the public R2 bucket.
 - Implement state machine: `idle`, `listening`, `processing`, `speaking`.
-- Use Web Audio API `AnalyserNode` to map FFT data to ARKit viseme morph targets when in the `speaking` state.
+- Use Web Audio API `AnalyserNode` to map FFT data to ARKit `viseme_` morph target weights when in the `speaking` state, driving `avatoon`'s morph target controls each animation frame.
 **Execution note:** Ensure the canvas resizes correctly and the glTF loads asynchronously without blocking the UI.
 **Test scenarios:**
 - Covers happy path behaviors: Character renders in idle state; transitions to speaking state when audio plays.
