@@ -204,6 +204,7 @@ The primary motivation is demonstrating technical capability to a curated audien
 - Create a workflow triggered on push to `main`.
 - Inject secrets from GitHub Actions environment.
 - Step 1: `terraform apply -auto-approve`.
+  - **Backend Note (R2 Endpoint Configuration):** Terraform's S3 backend driver targets AWS S3 by default. Per Approach B (zero account ID committed to Git), CI/CD must explicitly configure the S3 endpoint and credentials to point to Cloudflare R2 during `terraform init` using `-backend-config` flags: `-backend-config="access_key=${{ secrets.R2_ACCESS_KEY_ID }}"`, `-backend-config="secret_key=${{ secrets.R2_SECRET_ACCESS_KEY }}"`, and `-backend-config="endpoints={s3=\"https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com\"}"`.
 - Step 2: Apply D1 migrations.
 - Step 3: Build and deploy API Worker (`wrangler deploy`).
 - Step 4: Build and deploy Next.js frontend (`npm run build` then deploy to Pages).
