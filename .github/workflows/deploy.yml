@@ -1,0 +1,112 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Production Deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.15.8"
+          terraform_wrapper: false
+
+      - name: Terraform Init (R2 Backend)
+        run: |
+          terraform -chdir=terraform init \
+            -backend-config="access_key=${{ secrets.R2_ACCESS_KEY_ID }}" \
+            -backend-config="secret_key=${{ secrets.R2_SECRET_ACCESS_KEY }}" \
+            -backend-config="endpoints={s3=\"https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com\"}" \
+            -input=false
+
+      - name: Terraform Apply
+        run: |
+          terraform -chdir=terraform apply -auto-approve \
+            -var="cloudflare_account_id=${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" \
+            -var="cloudflare_api_token=${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -input=false
+
+      - name: Apply D1 Database Migrations
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -d "packages/db/migrations" ] && [ "$(ls -A packages/db/migrations 2>/dev/null)" ]; then
+            echo "Applying D1 migrations to remote database 'flare-db'..."
+            npx wrangler d1 migrations apply flare-db --remote
+          else
+            echo "No migration files found in packages/db/migrations yet. Skipping D1 migration step."
+          fi
+
+      - name: Deploy API Worker
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          DEEPINFRA_API_KEY: ${{ secrets.DEEPINFRA_API_KEY }}
+        run: |
+          if [ -f "apps/api/wrangler.toml" ] || [ -f "apps/api/wrangler.json" ] || [ -f "apps/api/wrangler.jsonc" ]; then
+            echo "Configuring Worker secrets..."
+            if [ -n "$CLERK_SECRET_KEY" ]; then
+              echo "$CLERK_SECRET_KEY" | npx wrangler secret put CLERK_SECRET_KEY --cwd apps/api || true
+            fi
+            if [ -n "$DEEPINFRA_API_KEY" ]; then
+              echo "$DEEPINFRA_API_KEY" | npx wrangler secret put DEEPINFRA_API_KEY --cwd apps/api || true
+            fi
+            echo "Deploying Cloudflare Worker API..."
+            npx wrangler deploy --cwd apps/api
+          else
+            echo "No Worker configuration found in apps/api yet. Skipping Worker deploy step."
+          fi
+
+      - name: Build Next.js Frontend
+        env:
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_ASSETS_URL: ${{ secrets.NEXT_PUBLIC_ASSETS_URL }}
+        run: |
+          if node -e 'const pkg = require("./apps/web/package.json"); process.exit(pkg.scripts && pkg.scripts.build ? 0 : 1)'; then
+            echo "Building static Next.js export for @flare/web..."
+            npm run build --workspace=@flare/web
+          else
+            echo "No build script found in apps/web/package.json yet. Skipping frontend build."
+          fi
+
+      - name: Deploy Cloudflare Pages
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -d "apps/web/out" ] && [ "$(ls -A apps/web/out 2>/dev/null)" ]; then
+            echo "Deploying static assets in apps/web/out to Cloudflare Pages project 'flare-web'..."
+            npx wrangler pages deploy apps/web/out --project-name=flare-web --branch=main
+          else
+            echo "Directory apps/web/out not found or empty. Skipping Cloudflare Pages deployment."
+          fi

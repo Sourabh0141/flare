@@ -20,17 +20,17 @@ terraform {
   # For a fresh environment, comment out this backend block for the first run,
   # execute `terraform apply` locally to provision the state bucket, then uncomment
   # this block and run `terraform init -migrate-state`.
-  # backend "s3" {
-  #   bucket                      = "flare-tf-state"
-  #   key                         = "production/terraform.tfstate"
-  #   region                      = "auto"
-  #   skip_credentials_validation = true
-  #   skip_metadata_api_check     = true
-  #   skip_region_validation      = true
-  #   skip_requesting_account_id  = true
-  #   skip_s3_checksum            = true
-  #   use_path_style              = true
-  # }
+  backend "s3" {
+    bucket                      = "flare-tf-state"
+    key                         = "production/terraform.tfstate"
+    region                      = "auto"
+    skip_credentials_validation = true
+    skip_metadata_api_check     = true
+    skip_region_validation      = true
+    skip_requesting_account_id  = true
+    skip_s3_checksum            = true
+    use_path_style              = true
+  }
 }
 
 provider "cloudflare" {
