@@ -16,6 +16,7 @@ permissions:
 jobs:
   deploy:
     name: Production Deployment
+    environment: production
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
