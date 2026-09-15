@@ -1,15 +1,7 @@
 # -----------------------------------------------------------------------------
-# Cloudflare R2 Buckets
+# Cloudflare R2 Public Assets Bucket (avatar.glb, animations.glb, fallback.mp3)
 # -----------------------------------------------------------------------------
 
-# 1. Private bucket for Terraform remote state locking
-resource "cloudflare_r2_bucket" "terraform_state" {
-  account_id = var.cloudflare_account_id
-  name       = "${var.project_name}-tf-state"
-  location   = var.r2_location != "auto" ? var.r2_location : null
-}
-
-# 2. Public application assets bucket (avatar.glb, animations.glb, fallback.mp3)
 resource "cloudflare_r2_bucket" "app_assets" {
   account_id = var.cloudflare_account_id
   name       = "${var.project_name}-assets"

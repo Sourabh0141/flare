@@ -23,7 +23,7 @@ output "r2_assets_bucket_name" {
 
 output "r2_state_bucket_name" {
   description = "Name of the private Terraform state R2 bucket"
-  value       = cloudflare_r2_bucket.terraform_state.name
+  value       = "${var.project_name}-tf-state"
 }
 
 # -----------------------------------------------------------------------------
