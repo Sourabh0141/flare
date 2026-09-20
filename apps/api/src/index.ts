@@ -4,6 +4,7 @@ import { authMiddleware } from './auth.js';
 import { healthRoutes } from './routes/health.js';
 import { settingsRoutes } from './routes/settings.js';
 import { conversationsRoutes } from './routes/conversations.js';
+import { chatRoutes } from './routes/chat.js';
 import type { AppEnv } from './types.js';
 
 const app = new Hono<AppEnv>();
@@ -64,6 +65,7 @@ const protectedApi = new Hono<AppEnv>();
 protectedApi.use('*', authMiddleware);
 protectedApi.route('/settings', settingsRoutes);
 protectedApi.route('/conversations', conversationsRoutes);
+protectedApi.route('/chat', chatRoutes);
 
 // Mount protected API routes under /api
 app.route('/api', protectedApi);

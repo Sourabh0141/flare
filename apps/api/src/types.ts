@@ -9,6 +9,10 @@ export interface AppBindings {
   CLERK_PUBLISHABLE_KEY?: string;
   CLERK_JWT_KEY?: string;
   DEEPINFRA_API_KEY?: string;
+  DEEPINFRA_STT_MODEL?: string;
+  DEEPINFRA_LLM_MODEL?: string;
+  DEEPINFRA_TTS_MODEL?: string;
+  DEEPINFRA_TTS_VOICE?: string;
   ALLOWED_ORIGINS?: string;
 }
 
