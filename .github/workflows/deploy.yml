@@ -61,7 +61,7 @@ jobs:
         run: |
           if [ -d "packages/db/migrations" ] && [ "$(ls -A packages/db/migrations 2>/dev/null)" ]; then
             echo "Applying D1 migrations to remote database 'flare-db'..."
-            npx wrangler d1 migrations apply flare-db --remote
+            npx wrangler d1 migrations apply flare-db --remote --cwd packages/db
           else
             echo "No migration files found in packages/db/migrations yet. Skipping D1 migration step."
           fi

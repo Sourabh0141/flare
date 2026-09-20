@@ -14,5 +14,7 @@
     "test": "npm run test --workspaces --if-present",
     "clean": "npm run clean --workspaces --if-present"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "wrangler": "^4.135.0"
+  }
 }
