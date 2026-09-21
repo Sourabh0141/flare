@@ -14,6 +14,7 @@ import {
   synthesizeSpeech,
   type ChatMessage,
 } from '../deepinfra.js';
+import { maybeTriggerSummarization } from '../summarize.js';
 import type { AppEnv } from '../types.js';
 
 export const chatRoutes = new Hono<AppEnv>();
@@ -190,7 +191,27 @@ chatRoutes.post('/', async (c) => {
     });
 
     // -------------------------------------------------------------------------
-    // 5. Return Binary Audio Payload
+    // 5. Asynchronously Trigger Background Summarization
+    // -------------------------------------------------------------------------
+    const summarizePromise = maybeTriggerSummarization(
+      c.env.DB,
+      activeConversationId,
+      apiKey,
+      {
+        model: c.env.DEEPINFRA_LLM_MODEL,
+      }
+    ).catch((err) => {
+      console.error('Background Summarization Error:', err);
+    });
+
+    try {
+      c.executionCtx?.waitUntil(summarizePromise);
+    } catch {
+      // In non-worker or unit test environments without ExecutionContext, ignore
+    }
+
+    // -------------------------------------------------------------------------
+    // 6. Return Binary Audio Payload (Immediate Zero-Latency Response)
     // -------------------------------------------------------------------------
     return new Response(audioBuffer, {
       status: 200,
