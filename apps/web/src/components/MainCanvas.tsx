@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
-import { Menu, Sparkles, Mic, Volume2, Loader2, Brain } from 'lucide-react';
+import React, { useRef } from 'react';
+import { Menu, Sparkles, Mic, Volume2, Brain, AlertCircle, X } from 'lucide-react';
 import { useConversations } from '@/context/ConversationContext';
 import { AvatarCanvas } from './AvatarCanvas';
-import { CharacterState } from './Avatar';
+import { PushToTalkButton } from './PushToTalkButton';
+import { useConversation } from '@/hooks/useConversation';
 
 interface MainCanvasProps {
   onOpenSidebar: () => void;
@@ -13,8 +14,16 @@ interface MainCanvasProps {
 
 export function MainCanvas({ onOpenSidebar, isSidebarOpen }: MainCanvasProps) {
   const { conversations, activeConversationId } = useConversations();
-  const [characterState, setCharacterState] = useState<CharacterState>('idle');
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const {
+    state,
+    errorMessage,
+    startRecording,
+    stopRecording,
+    interrupt,
+    clearError,
+  } = useConversation(audioRef);
 
   const activeConversation = conversations.find((c) => c.id === activeConversationId);
 
@@ -22,33 +31,33 @@ export function MainCanvas({ onOpenSidebar, isSidebarOpen }: MainCanvasProps) {
   const statusConfig = {
     idle: {
       label: 'Ready',
-      color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+      color: 'bg-emerald-950/60 text-emerald-300 border-emerald-500/30',
       icon: Sparkles,
     },
     listening: {
       label: 'Listening...',
-      color: 'bg-amber-500/20 text-amber-300 border-amber-500/30 animate-pulse',
+      color: 'bg-amber-950/70 text-amber-300 border-amber-500/40 animate-pulse',
       icon: Mic,
     },
     processing: {
       label: 'Thinking...',
-      color: 'bg-purple-500/20 text-purple-300 border-purple-500/30 animate-pulse',
+      color: 'bg-purple-950/70 text-purple-300 border-purple-500/40 animate-pulse',
       icon: Brain,
     },
     speaking: {
       label: 'Speaking',
-      color: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+      color: 'bg-indigo-950/70 text-indigo-300 border-indigo-500/40',
       icon: Volume2,
     },
   };
 
-  const currentStatus = statusConfig[characterState];
+  const currentStatus = statusConfig[state];
   const StatusIcon = currentStatus.icon;
 
   return (
     <main className="relative flex-1 flex flex-col h-full bg-zinc-950 overflow-hidden select-none">
-      {/* Hidden Audio Element for Web Audio API Analysis */}
-      <audio ref={audioRef} className="hidden" crossOrigin="anonymous" />
+      {/* Hidden Audio Element for Web Audio API FFT Analysis (R38) */}
+      <audio ref={audioRef} className="hidden" crossOrigin="anonymous" preload="auto" />
 
       {/* Top Header / Context Bar */}
       <header className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between p-4 bg-gradient-to-b from-zinc-950/90 via-zinc-950/50 to-transparent backdrop-blur-sm pointer-events-none">
@@ -82,6 +91,22 @@ export function MainCanvas({ onOpenSidebar, isSidebarOpen }: MainCanvasProps) {
         </div>
       </header>
 
+      {/* Error Alert Banner if speech/API error occurs (R32 / AE3) */}
+      {errorMessage && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2.5 px-4 py-2 rounded-xl bg-rose-950/90 border border-rose-500/40 text-rose-200 text-xs font-medium shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-200">
+          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+          <span>{errorMessage}</span>
+          <button
+            type="button"
+            onClick={clearError}
+            className="p-1 text-rose-400 hover:text-rose-100 rounded-lg transition-colors"
+            title="Dismiss error"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Center 3D Character Canvas Stage (R9, R36) */}
       <div className="relative flex-1 w-full h-full flex items-center justify-center">
         {/* Atmospheric Ambient Glows */}
@@ -90,63 +115,21 @@ export function MainCanvas({ onOpenSidebar, isSidebarOpen }: MainCanvasProps) {
 
         {/* 3D Avatar WebGL Canvas */}
         <AvatarCanvas
-          state={characterState}
+          state={state}
           audioElement={audioRef.current}
           className="w-full h-full z-10"
         />
       </div>
 
-      {/* Bottom Floating Control Bar (Preview & Preparation for Unit 9 PTT) */}
-      <footer className="absolute bottom-0 left-0 right-0 z-20 flex flex-col items-center justify-end p-6 bg-gradient-to-t from-zinc-950 via-zinc-950/60 to-transparent pointer-events-none">
-        <div className="flex flex-col items-center gap-4 pointer-events-auto">
-          {/* State Preview Switches for Testing Animation Transitions (R37) */}
-          <div className="flex items-center gap-1.5 p-1 rounded-xl bg-zinc-900/80 border border-zinc-800/80 backdrop-blur-md text-xs">
-            {(['idle', 'listening', 'processing', 'speaking'] as CharacterState[]).map((st) => (
-              <button
-                key={st}
-                type="button"
-                onClick={() => setCharacterState(st)}
-                className={`px-2.5 py-1 rounded-lg capitalize font-medium transition-all ${
-                  characterState === st
-                    ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
-                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
-                }`}
-              >
-                {st}
-              </button>
-            ))}
-          </div>
-
-          {/* Primary PTT Button Anchor (To be fully wired in Unit 9) */}
-          <div className="relative group">
-            <div
-              className={`w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 shadow-xl ${
-                characterState === 'listening'
-                  ? 'bg-amber-500 text-zinc-950 shadow-amber-500/40 scale-105 ring-4 ring-amber-400/30'
-                  : characterState === 'processing'
-                  ? 'bg-purple-800 text-purple-300 cursor-not-allowed shadow-purple-900/30'
-                  : characterState === 'speaking'
-                  ? 'bg-indigo-600 text-white shadow-indigo-600/40 animate-pulse'
-                  : 'bg-gradient-to-tr from-purple-600 to-indigo-600 text-white shadow-purple-600/30 hover:scale-105 active:scale-95'
-              }`}
-            >
-              {characterState === 'processing' ? (
-                <Loader2 className="w-7 h-7 animate-spin" />
-              ) : characterState === 'speaking' ? (
-                <Volume2 className="w-7 h-7" />
-              ) : (
-                <Mic className="w-7 h-7" />
-              )}
-            </div>
-          </div>
-
-          <p className="text-xs text-zinc-500 font-medium">
-            {characterState === 'processing'
-              ? 'AI is generating response...'
-              : characterState === 'speaking'
-              ? 'Avatar speaking with ARKit lip-sync'
-              : 'Hold to speak with Flare'}
-          </p>
+      {/* Bottom Push-To-Talk Control Bar (R10, R21-R26) */}
+      <footer className="absolute bottom-0 left-0 right-0 z-20 flex flex-col items-center justify-end p-6 bg-gradient-to-t from-zinc-950 via-zinc-950/70 to-transparent pointer-events-none">
+        <div className="pointer-events-auto">
+          <PushToTalkButton
+            state={state}
+            onStartRecording={startRecording}
+            onStopRecording={stopRecording}
+            onInterrupt={interrupt}
+          />
         </div>
       </footer>
     </main>
