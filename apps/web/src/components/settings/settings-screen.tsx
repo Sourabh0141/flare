@@ -14,8 +14,9 @@ import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useApiClient } from '@/hooks/use-api-client';
 import { describeError } from '@/lib/api/client';
+import { setCuesEnabled } from '@/lib/audio/cues';
 import { getVoicePlayer } from '@/lib/audio/player';
-import { readPrefs, writePrefs } from '@/lib/prefs';
+import { readPrefs, writePrefs, type DevicePrefs } from '@/lib/prefs';
 import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
 import { Dialog } from '../ui/dialog';
@@ -33,7 +34,7 @@ export function SettingsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [name, setName] = useState('');
-  const [handsFreeDefault, setHandsFreeDefault] = useState(false);
+  const [prefs, setPrefs] = useState<DevicePrefs | null>(null);
   const [previewing, setPreviewing] = useState<VoiceId | null>(null);
   const [confirmErase, setConfirmErase] = useState(false);
   const [erasing, setErasing] = useState(false);
@@ -46,7 +47,7 @@ export function SettingsScreen() {
         if (controller.signal.aborted) return;
         setUser(u);
         setName(u.displayName);
-        setHandsFreeDefault(readPrefs().handsFreeByDefault);
+        setPrefs(readPrefs());
         setStatus('ready');
       })
       .catch((cause: unknown) => {
@@ -90,6 +91,12 @@ export function SettingsScreen() {
       setError(describeError(cause));
       setStatus('ready');
     }
+  };
+
+  const setPref = (patch: Partial<DevicePrefs>) => {
+    const next = writePrefs({ ...patch, seenWelcome: true });
+    setPrefs(next);
+    if (patch.soundCues !== undefined) setCuesEnabled(patch.soundCues);
   };
 
   const submitName = (event: FormEvent) => {
@@ -182,7 +189,7 @@ export function SettingsScreen() {
 
       <Section
         title="Voice"
-        description="Tap a name to hear it. The choice applies to every reply, including replays."
+        description="Tap a name to hear it. When you speak another language, Flare answers in a native voice of the same register."
       >
         <div role="radiogroup" aria-label="Voice" className="grid gap-2 sm:grid-cols-2">
           {VOICES.map((voice) => {
@@ -268,23 +275,32 @@ export function SettingsScreen() {
       </Section>
 
       <Section title="On this device" description="Remembered in this browser only.">
-        <label className="flex cursor-pointer items-center justify-between gap-4 rounded-md border border-ash bg-soot/50 px-3 py-2.5">
-          <span>
-            <span className="block text-[15px] font-medium text-linen">Start hands-free</span>
-            <span className="block text-sm text-linen-dim">
-              Open the microphone as soon as Flare loads.
-            </span>
-          </span>
-          <input
-            type="checkbox"
-            checked={handsFreeDefault}
-            onChange={(event) => {
-              setHandsFreeDefault(event.target.checked);
-              writePrefs({ handsFreeByDefault: event.target.checked, seenWelcome: true });
-            }}
-            className="size-5 accent-ember"
+        <div className="flex flex-col gap-2">
+          <Toggle
+            label="Start hands-free"
+            description="Open the microphone as soon as Flare loads."
+            checked={prefs?.handsFreeByDefault ?? false}
+            onChange={(value) => setPref({ handsFreeByDefault: value })}
           />
-        </label>
+          <Toggle
+            label="Neural voice detection"
+            description="Silero VAD, a small on-device model, tells speech from noise far better than a volume threshold. Downloads about 15 MB once, then stays cached."
+            checked={prefs?.neuralVad ?? true}
+            onChange={(value) => setPref({ neuralVad: value })}
+          />
+          <Toggle
+            label="Interrupt by speaking"
+            description="In hands-free mode, keep listening while Flare talks and cut in when you speak. Works best with headphones; with speakers it may hear itself."
+            checked={prefs?.bargeIn ?? false}
+            onChange={(value) => setPref({ bargeIn: value })}
+          />
+          <Toggle
+            label="Sound cues"
+            description="A soft tone when listening starts and when a turn is sent."
+            checked={prefs?.soundCues ?? true}
+            onChange={(value) => setPref({ soundCues: value })}
+          />
+        </div>
       </Section>
 
       <Section
@@ -336,5 +352,32 @@ function Section({
       <p className="mt-1 max-w-xl text-sm text-linen-dim">{description}</p>
       <div className="mt-5">{children}</div>
     </section>
+  );
+}
+
+function Toggle({
+  label,
+  description,
+  checked,
+  onChange,
+}: {
+  label: string;
+  description: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <label className="flex cursor-pointer items-center justify-between gap-4 rounded-md border border-ash bg-soot/50 px-3 py-2.5">
+      <span>
+        <span className="block text-[15px] font-medium text-linen">{label}</span>
+        <span className="block text-sm text-linen-dim">{description}</span>
+      </span>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="size-5 shrink-0 accent-ember"
+      />
+    </label>
   );
 }

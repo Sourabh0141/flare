@@ -6,6 +6,8 @@ import { useConversationStore } from './conversation-store';
 const conversation = (id: string, updatedAt: number): Conversation => ({
   id,
   title: `Conversation ${id}`,
+  pinned: false,
+  archived: false,
   createdAt: updatedAt,
   updatedAt,
 });
@@ -17,6 +19,8 @@ const message = (id: string, conversationId: string, role: Message['role'] = 'us
   content: `message ${id}`,
   emotion: null,
   gesture: null,
+  intensity: null,
+  language: null,
   createdAt: 1,
 });
 
@@ -67,7 +71,7 @@ describe('conversation store', () => {
     const store = useConversationStore.getState();
     store.openConversation('old');
     store.setTranscript([message('1', 'old')]);
-    store.setPendingTurn({ transcript: 'hi' });
+    store.setPendingTurn({ transcript: 'hi', reply: '' });
     store.appendMessages('new', [message('2', 'new'), message('3', 'new', 'assistant')]);
     const state = useConversationStore.getState();
     expect(state.activeId).toBe('new');

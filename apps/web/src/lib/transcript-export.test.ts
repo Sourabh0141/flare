@@ -12,6 +12,8 @@ const messages: Message[] = [
     content: 'Ada likes tea.',
     emotion: null,
     gesture: null,
+    intensity: null,
+    language: null,
     createdAt: at - 100,
   },
   {
@@ -21,6 +23,8 @@ const messages: Message[] = [
     content: 'Morning!',
     emotion: null,
     gesture: null,
+    intensity: null,
+    language: null,
     createdAt: at,
   },
   {
@@ -30,6 +34,8 @@ const messages: Message[] = [
     content: 'Good morning, Ada.',
     emotion: 'happy',
     gesture: 'nod',
+    intensity: null,
+    language: null,
     createdAt: at + 1,
   },
   {
@@ -39,6 +45,8 @@ const messages: Message[] = [
     content: 'Tea first?',
     emotion: 'neutral',
     gesture: 'none',
+    intensity: null,
+    language: null,
     createdAt: at + 2,
   },
 ];

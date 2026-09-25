@@ -1,20 +1,27 @@
 import {
+  adminStatusResponseSchema,
   apiErrorBodySchema,
   conversationDetailResponseSchema,
   inviteResponseSchema,
   listConversationsResponseSchema,
-  respondResponseSchema,
+  listInvitesResponseSchema,
+  reviewInviteResponseSchema,
   settingsResponseSchema,
   transcribeResponseSchema,
+  turnEventSchema,
   updateConversationResponseSchema,
   type ApiErrorCode,
   type Conversation,
   type ConversationDetailResponse,
   type InviteRequest,
+  type InviteStatus,
   type ListConversationsResponse,
+  type ListInvitesResponse,
   type RespondRequest,
-  type RespondResponse,
+  type ReviewInviteResponse,
   type TranscribeResponse,
+  type TurnEvent,
+  type UpdateConversationRequest,
   type UpdateSettingsRequest,
   type User,
   type VoiceId,
@@ -82,12 +89,13 @@ export class ApiClient {
   }
 
   async listConversations(
-    options: { limit?: number; cursor?: string | null } = {},
+    options: { limit?: number; cursor?: string | null; archived?: boolean } = {},
     signal?: AbortSignal
   ): Promise<ListConversationsResponse> {
     const params = new URLSearchParams();
     if (options.limit) params.set('limit', String(options.limit));
     if (options.cursor) params.set('cursor', options.cursor);
+    if (options.archived) params.set('archived', 'true');
     const query = params.size > 0 ? `?${params.toString()}` : '';
     return this.request(`/api/conversations${query}`, listConversationsResponseSchema, { signal });
   }
@@ -100,11 +108,11 @@ export class ApiClient {
     );
   }
 
-  async renameConversation(id: string, title: string): Promise<Conversation> {
+  async updateConversation(id: string, changes: UpdateConversationRequest): Promise<Conversation> {
     const data = await this.request(
       `/api/conversations/${encodeURIComponent(id)}`,
       updateConversationResponseSchema,
-      { method: 'PATCH', json: { title } }
+      { method: 'PATCH', json: changes }
     );
     return data.conversation;
   }
@@ -122,12 +130,68 @@ export class ApiClient {
     });
   }
 
-  async respond(input: RespondRequest, signal?: AbortSignal): Promise<RespondResponse> {
-    return this.request('/api/turns/respond', respondResponseSchema, {
+  /**
+   * Streams a reply. Each validated event is handed to `onEvent` as it arrives; the promise
+   * resolves when the stream ends. A malformed frame is skipped rather than fatal.
+   */
+  async respondStream(
+    input: RespondRequest,
+    onEvent: (event: TurnEvent) => void | Promise<void>,
+    signal?: AbortSignal
+  ): Promise<void> {
+    const response = await this.send('/api/turns/respond', {
       method: 'POST',
       json: input,
-      signal,
+      headers: { accept: 'text/event-stream' },
+      ...(signal ? { signal } : {}),
     });
+    if (!response.body) {
+      throw new ApiClientError('invalid_response', 'The server sent no reply stream.');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    const dispatch = async (block: string) => {
+      const data = block
+        .split('\n')
+        .filter((line) => line.startsWith('data:'))
+        .map((line) => line.slice(5).trim())
+        .join('\n');
+      if (!data) return;
+      let raw: unknown;
+      try {
+        raw = JSON.parse(data);
+      } catch {
+        return;
+      }
+      const parsed = turnEventSchema.safeParse(raw);
+      if (parsed.success) await onEvent(parsed.data);
+    };
+
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let boundary = buffer.indexOf('\n\n');
+        while (boundary >= 0) {
+          const block = buffer.slice(0, boundary);
+          buffer = buffer.slice(boundary + 2);
+          await dispatch(block);
+          boundary = buffer.indexOf('\n\n');
+        }
+      }
+      if (buffer.trim()) await dispatch(buffer);
+    } catch (cause) {
+      if (cause instanceof DOMException && cause.name === 'AbortError') {
+        throw new ApiClientError('aborted', 'Request cancelled.', { cause });
+      }
+      throw new ApiClientError('network', 'The reply stream was interrupted.', { cause });
+    } finally {
+      reader.releaseLock();
+    }
   }
 
   /** Downloads the synthesized speech for an assistant message. */
@@ -153,6 +217,32 @@ export class ApiClient {
       json: input,
       anonymous: true,
     });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Admin
+  // ---------------------------------------------------------------------------
+
+  async getAdminStatus(signal?: AbortSignal): Promise<boolean> {
+    const data = await this.request('/api/admin/status', adminStatusResponseSchema, { signal });
+    return data.isAdmin;
+  }
+
+  async listInvites(status: InviteStatus, signal?: AbortSignal): Promise<ListInvitesResponse> {
+    return this.request(`/api/admin/invites?status=${status}`, listInvitesResponseSchema, {
+      signal,
+    });
+  }
+
+  async reviewInvite(id: string, status: 'approved' | 'dismissed'): Promise<ReviewInviteResponse> {
+    return this.request(
+      `/api/admin/invites/${encodeURIComponent(id)}`,
+      reviewInviteResponseSchema,
+      {
+        method: 'PATCH',
+        json: { status },
+      }
+    );
   }
 
   private async request<T>(
@@ -258,6 +348,8 @@ export function describeError(error: unknown): string {
         return 'That recording was too long. Keep each turn under a minute.';
       case 'unauthorized':
         return 'Your session has ended. Sign in again to continue.';
+      case 'forbidden':
+        return 'This area is for administrators.';
       case 'upstream_timeout':
         return 'Flare took too long to answer. Try that once more.';
       case 'upstream_error':

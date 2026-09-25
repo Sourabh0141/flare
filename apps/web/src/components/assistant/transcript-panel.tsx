@@ -47,7 +47,7 @@ export function TranscriptPanel({ open, onClose, onReplay, className }: Transcri
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
-  }, [messages.length, pending, state]);
+  }, [messages.length, pending?.reply.length, state]);
 
   useEffect(() => {
     if (!copied) return;
@@ -110,7 +110,7 @@ export function TranscriptPanel({ open, onClose, onReplay, className }: Transcri
         </div>
       </div>
 
-      <div className="flex-1 scrollbar-thin overflow-y-auto px-4 py-4">
+      <div className="flex-1 scrollbar-thin overflow-y-auto px-4 py-4" aria-live="polite">
         {status === 'loading' ? (
           <div className="flex items-center gap-2 py-8 text-sm text-smoke">
             <Spinner className="size-4" /> Loading transcript
@@ -144,9 +144,19 @@ export function TranscriptPanel({ open, onClose, onReplay, className }: Transcri
             {pending ? (
               <li className="flex flex-col gap-3">
                 <UserRow message={{ content: pending.transcript }} pending />
-                <div className="flex items-center gap-2 text-sm text-dusk">
-                  <Spinner className="size-4" /> Flare is thinking
-                </div>
+                {pending.reply ? (
+                  <div className="flex flex-col gap-1 rounded-md border-l-2 border-ember pl-3">
+                    <div className="flex items-center gap-2 text-xs text-smoke">
+                      <span className="font-medium text-ember-soft">Flare</span>
+                      <span>{state === 'speaking' ? 'speaking' : 'writing'}</span>
+                    </div>
+                    <p className="text-[15px] leading-relaxed text-linen">{pending.reply}</p>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-sm text-dusk">
+                    <Spinner className="size-4" /> Flare is thinking
+                  </div>
+                )}
               </li>
             ) : null}
           </ol>
@@ -205,6 +215,11 @@ function AssistantRow({
         {message.emotion && message.emotion !== 'neutral' ? (
           <span className="rounded-pill bg-soot-raised px-2 py-0.5 text-[11px] text-linen-dim">
             {emotionLabels[message.emotion]}
+          </span>
+        ) : null}
+        {message.language && message.language !== 'en' ? (
+          <span className="rounded-pill bg-soot-raised px-2 py-0.5 text-[11px] text-linen-dim uppercase">
+            {message.language}
           </span>
         ) : null}
         <IconButton
