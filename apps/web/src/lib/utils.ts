@@ -1,58 +1,40 @@
-import { type ClassValue, clsx } from 'clsx';
+import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
-/**
- * Combines class names with Tailwind CSS deduplication.
- */
 export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs));
 }
 
-/**
- * Formats a UNIX epoch timestamp (in seconds) into a readable relative label.
- * (e.g., "Just now", "Today", "Yesterday", "Sep 15") per Requirement R11.
- */
-export function formatRelativeTime(epochSeconds: number): string {
+/** "Just now", "12m ago", "Today", "Yesterday", "Sep 15", or "Sep 15, 2025". */
+export function formatRelativeTime(epochSeconds: number, now: Date = new Date()): string {
   if (!epochSeconds) return '';
-
-  const now = new Date();
   const date = new Date(epochSeconds * 1000);
-  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+  const diffSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-  if (diffInSeconds < 60) {
-    return 'Just now';
-  }
+  if (diffSeconds < 60) return 'Just now';
+  if (diffSeconds < 3600) return `${Math.floor(diffSeconds / 60)}m ago`;
 
-  if (diffInSeconds < 3600) {
-    const mins = Math.floor(diffInSeconds / 60);
-    return `${mins}m ago`;
-  }
+  const sameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
 
-  const isToday =
-    now.getDate() === date.getDate() &&
-    now.getMonth() === date.getMonth() &&
-    now.getFullYear() === date.getFullYear();
-
-  if (isToday) {
-    return 'Today';
-  }
-
+  if (sameDay(date, now)) return 'Today';
   const yesterday = new Date(now);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const isYesterday =
-    yesterday.getDate() === date.getDate() &&
-    yesterday.getMonth() === date.getMonth() &&
-    yesterday.getFullYear() === date.getFullYear();
+  yesterday.setDate(now.getDate() - 1);
+  if (sameDay(date, yesterday)) return 'Yesterday';
 
-  if (isYesterday) {
-    return 'Yesterday';
-  }
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    ...(date.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}),
+  });
+}
 
-  // Same year: "Sep 15"
-  if (now.getFullYear() === date.getFullYear()) {
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  }
-
-  // Different year: "Sep 15, 2025"
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+/** "10:42 AM" style clock label for transcript rows. */
+export function formatClock(epochSeconds: number): string {
+  return new Date(epochSeconds * 1000).toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }

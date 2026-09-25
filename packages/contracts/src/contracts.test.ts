@@ -8,7 +8,7 @@ import {
   listConversationsQuerySchema,
   respondRequestSchema,
   updateSettingsRequestSchema,
-} from './index.js';
+} from './index';
 
 describe('character enums', () => {
   it('recognises known emotions and gestures only', () => {

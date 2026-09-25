@@ -1,6 +1,6 @@
 import type { Conversation } from '@flare/contracts';
-import { decodeCursor, encodeCursor } from '../cursor.js';
-import { newId, nowSeconds, toConversation, type ConversationRow } from '../rows.js';
+import { decodeCursor, encodeCursor } from '../cursor';
+import { newId, nowSeconds, toConversation, type ConversationRow } from '../rows';
 
 const CONVERSATION_COLUMNS = 'id, user_id, title, created_at, updated_at';
 

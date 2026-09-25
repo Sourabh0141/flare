@@ -1,5 +1,5 @@
 import type { Emotion, Gesture, Message } from '@flare/contracts';
-import { newId, nowSeconds, toMessage, type MessageRow } from '../rows.js';
+import { newId, nowSeconds, toMessage, type MessageRow } from '../rows';
 
 const MESSAGE_COLUMNS = 'id, conversation_id, role, content, emotion, gesture, created_at';
 

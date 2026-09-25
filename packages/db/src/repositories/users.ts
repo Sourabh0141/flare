@@ -1,5 +1,5 @@
 import type { User } from '@flare/contracts';
-import { nowSeconds, toUser, type UserRow } from '../rows.js';
+import { nowSeconds, toUser, type UserRow } from '../rows';
 
 const USER_COLUMNS = 'id, display_name, created_at, updated_at';
 

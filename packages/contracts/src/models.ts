@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { emotionSchema, gestureSchema } from './character.js';
+import { emotionSchema, gestureSchema } from './character';
 
 export const MESSAGE_ROLES = ['user', 'assistant', 'summary'] as const;
 export const messageRoleSchema = z.enum(MESSAGE_ROLES);

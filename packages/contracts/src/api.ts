@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { conversationSchema, messageSchema, userSchema } from './models.js';
+import { conversationSchema, messageSchema, userSchema } from './models';
 
 // -----------------------------------------------------------------------------
 // Limits shared by client-side validation and server-side enforcement
