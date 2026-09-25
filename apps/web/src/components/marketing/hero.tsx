@@ -39,6 +39,14 @@ export function Hero() {
                 Open Flare
               </Link>
             </SignedIn>
+            <SignedOut>
+              <Link
+                href="/invite/"
+                className="type-ui inline-flex h-12 items-center rounded-md border border-ash px-5 text-base text-linen transition-colors hover:border-ash-soft hover:bg-soot-raised"
+              >
+                Request an invite
+              </Link>
+            </SignedOut>
             <Link
               href="/about/"
               className="type-ui inline-flex h-12 items-center rounded-md px-4 text-base text-linen-dim transition-colors hover:text-linen"
@@ -48,7 +56,7 @@ export function Hero() {
           </div>
           <p className="text-sm text-smoke">
             Invite-only while it grows. Works in any modern desktop or mobile browser with a
-            microphone.
+            microphone, hands-free if you like.
           </p>
         </div>
 

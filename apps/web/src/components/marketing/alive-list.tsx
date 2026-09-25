@@ -16,6 +16,10 @@ const behaviours = [
     body: 'A laugh, a shake of the head, an occasional dance if you ask for one. Gestures are picked with the reply and played from a small clip library.',
   },
   {
+    title: 'It waits for you to finish',
+    body: 'In hands-free mode a voice-activity gate on your device learns the room and sends a turn when you pause. The microphone rests while Flare thinks or speaks, so it never answers itself.',
+  },
+  {
     title: 'The light follows the conversation',
     body: 'The room warms while Flare listens, cools while it thinks, and opens up when it speaks. You can read the state without reading a label.',
   },

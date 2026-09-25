@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { SiteFooter } from '@/components/layout/site-footer';
 import { SiteHeader } from '@/components/layout/site-header';
+import { CharacterPlayground } from '@/components/marketing/character-playground';
 import { PipelineDiagram } from '@/components/marketing/pipeline-diagram';
 
 export const metadata: Metadata = {
@@ -95,6 +96,19 @@ export default function AboutPage() {
                 blend in a body clip at reduced weight, so annoyance reads as a flicker rather than
                 a tantrum. The stage lights follow the same state, in the scene and on the page.
               </p>
+            </div>
+          </section>
+
+          <section aria-labelledby="playground-heading" className="mt-20">
+            <h2 id="playground-heading" className="type-heading text-2xl text-linen sm:text-3xl">
+              Try the character
+            </h2>
+            <p className="mt-3 max-w-2xl text-linen-dim">
+              These buttons write to the same state the assistant uses. Pick a mood, add a gesture,
+              switch the state, and watch the face, posture and light respond.
+            </p>
+            <div className="mt-6">
+              <CharacterPlayground />
             </div>
           </section>
 

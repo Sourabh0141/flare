@@ -19,6 +19,9 @@ export const metadata: Metadata = {
   },
   description: SITE.description,
   applicationName: SITE.name,
+  manifest: '/manifest.webmanifest',
+  icons: { icon: '/icon.svg', apple: '/icon.svg' },
+  appleWebApp: { capable: true, title: SITE.name, statusBarStyle: 'black-translucent' },
   robots: { index: true, follow: true },
   openGraph: {
     title: `${SITE.name}: ${SITE.tagline}`,

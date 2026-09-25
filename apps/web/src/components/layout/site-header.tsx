@@ -6,7 +6,10 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Wordmark } from '../ui/wordmark';
 
-const links = [{ href: '/about/', label: 'How it works' }];
+const links = [
+  { href: '/about/', label: 'How it works' },
+  { href: '/help/', label: 'Help' },
+];
 
 export function SiteHeader() {
   const pathname = usePathname();
@@ -39,6 +42,12 @@ export function SiteHeader() {
               className="type-ui rounded-md px-3 py-2 text-[15px] text-linen-dim transition-colors hover:text-linen"
             >
               Sign in
+            </Link>
+            <Link
+              href="/invite/"
+              className="type-ui ml-1 hidden h-9 items-center rounded-md bg-ember px-4 text-[15px] font-medium text-ink transition-colors hover:bg-ember-soft sm:inline-flex"
+            >
+              Request an invite
             </Link>
           </SignedOut>
           <SignedIn>
