@@ -8,5 +8,6 @@
 export * from './repositories/users';
 export * from './repositories/conversations';
 export * from './repositories/messages';
+export * from './repositories/invites';
 export { encodeCursor, decodeCursor, type ConversationCursor } from './cursor';
 export { nowSeconds, newId } from './rows';

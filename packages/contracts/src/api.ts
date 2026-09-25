@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { conversationSchema, messageSchema, userSchema } from './models';
+import { personaIdSchema, voiceIdSchema } from './voices';
 
 // -----------------------------------------------------------------------------
 // Limits shared by client-side validation and server-side enforcement
@@ -17,6 +18,10 @@ export const LIMITS = {
   utteranceMinMs: 300,
   conversationsPageMax: 100,
   conversationsPageDefault: 50,
+  /** Turns one user may take per UTC day; protects the provider bill, not the platform. */
+  dailyTurnsDefault: 300,
+  inviteNameMax: 80,
+  inviteReasonMax: 500,
 } as const;
 
 export const ACCEPTED_AUDIO_TYPES = [
@@ -33,9 +38,15 @@ export const ACCEPTED_AUDIO_TYPES = [
 // Settings
 // -----------------------------------------------------------------------------
 
-export const updateSettingsRequestSchema = z.object({
-  displayName: z.string().trim().min(1).max(LIMITS.displayNameMax),
-});
+export const updateSettingsRequestSchema = z
+  .object({
+    displayName: z.string().trim().min(1).max(LIMITS.displayNameMax).optional(),
+    voice: voiceIdSchema.optional(),
+    persona: personaIdSchema.optional(),
+  })
+  .refine((v) => v.displayName !== undefined || v.voice !== undefined || v.persona !== undefined, {
+    message: 'Provide at least one setting to change.',
+  });
 export type UpdateSettingsRequest = z.infer<typeof updateSettingsRequestSchema>;
 
 export const settingsResponseSchema = z.object({ user: userSchema });
@@ -100,11 +111,33 @@ export const respondResponseSchema = z.object({
   isNewConversation: z.boolean(),
   userMessage: messageSchema,
   assistantMessage: messageSchema,
+  /** Turns remaining today, so the client can warn before the cap. */
+  turnsRemainingToday: z.number().int().nonnegative(),
 });
 export type RespondResponse = z.infer<typeof respondResponseSchema>;
 
 /** Stage 3: GET /api/messages/:id/audio streams synthesized speech for an assistant message. */
 export const SPEECH_CONTENT_TYPE = 'audio/mpeg';
+
+// -----------------------------------------------------------------------------
+// Invite requests (public)
+// -----------------------------------------------------------------------------
+
+export const inviteRequestSchema = z.object({
+  name: z.string().trim().min(1).max(LIMITS.inviteNameMax),
+  email: z.string().trim().toLowerCase().email().max(254),
+  reason: z.string().trim().max(LIMITS.inviteReasonMax).default(''),
+  /** Cloudflare Turnstile response token; required when the site key is configured. */
+  turnstileToken: z.string().max(4096).optional(),
+  /** Honeypot: real users never fill this. */
+  website: z.string().max(200).optional(),
+});
+export type InviteRequest = z.infer<typeof inviteRequestSchema>;
+
+export const inviteResponseSchema = z.object({
+  received: z.literal(true),
+});
+export type InviteResponse = z.infer<typeof inviteResponseSchema>;
 
 // -----------------------------------------------------------------------------
 // Health

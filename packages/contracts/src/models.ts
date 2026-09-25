@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { emotionSchema, gestureSchema } from './character';
+import { personaIdSchema, voiceIdSchema } from './voices';
 
 export const MESSAGE_ROLES = ['user', 'assistant', 'summary'] as const;
 export const messageRoleSchema = z.enum(MESSAGE_ROLES);
@@ -11,6 +12,8 @@ const epochSeconds = z.number().int().nonnegative();
 export const userSchema = z.object({
   id: z.string(),
   displayName: z.string(),
+  voice: voiceIdSchema,
+  persona: personaIdSchema,
   createdAt: epochSeconds,
   updatedAt: epochSeconds,
 });

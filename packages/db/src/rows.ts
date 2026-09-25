@@ -1,6 +1,10 @@
 import {
+  DEFAULT_PERSONA,
+  DEFAULT_VOICE,
   isEmotion,
   isGesture,
+  isPersonaId,
+  isVoiceId,
   type Conversation,
   type Message,
   type MessageRole,
@@ -15,6 +19,8 @@ import {
 export interface UserRow {
   id: string;
   display_name: string;
+  voice: string | null;
+  persona: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -41,6 +47,9 @@ export function toUser(row: UserRow): User {
   return {
     id: row.id,
     displayName: row.display_name,
+    // Unknown or retired ids fall back to defaults rather than breaking the client.
+    voice: isVoiceId(row.voice) ? row.voice : DEFAULT_VOICE,
+    persona: isPersonaId(row.persona) ? row.persona : DEFAULT_PERSONA,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
