@@ -1,4 +1,10 @@
-import { EMOTIONS, GESTURES, personaInstruction, type PersonaId } from '@flare/contracts';
+import {
+  EMOTIONS,
+  GESTURES,
+  languageName,
+  personaInstruction,
+  type PersonaId,
+} from '@flare/contracts';
 
 /**
  * Prompts are deliberately terse: on the free tiers every input token is paid for on each
@@ -9,22 +15,28 @@ import { EMOTIONS, GESTURES, personaInstruction, type PersonaId } from '@flare/c
 export interface CompanionPromptOptions {
   displayName: string;
   persona: PersonaId;
+  /** ISO 639-1 code Flare should answer in. */
+  language: string;
   wantsTitle: boolean;
 }
 
+/**
+ * The reply starts with one tag line, then the spoken text. A tag instead of JSON means the
+ * text can stream to the client and be spoken sentence by sentence while the model is still
+ * writing.
+ */
 export function buildCompanionSystemPrompt(options: CompanionPromptOptions): string {
+  const tag = options.wantsTitle
+    ? '[emotion|gesture|intensity|title]'
+    : '[emotion|gesture|intensity]';
+  const example = options.wantsTitle ? '[happy|nod|0.6|Morning plans]' : '[happy|nod|0.6]';
   const lines = [
     `You are Flare, a voice companion talking with ${options.displayName}. ${personaInstruction(options.persona)}`,
-    'Reply in 1-3 short spoken sentences of plain English. No lists, markdown or emoji.',
-    'Return JSON only: {"reply": string, "emotion": string, "gesture": string' +
-      (options.wantsTitle ? ', "title": string' : '') +
-      '}.',
-    `emotion is one of: ${EMOTIONS.join(', ')}.`,
-    `gesture is one of: ${GESTURES.join(', ')} (use nod/shake sparingly, laugh/dance only when it fits).`,
+    `Reply in 1-3 short spoken sentences of plain ${languageName(options.language)}. No lists, markdown or emoji.`,
+    `Begin with one tag on its own line: ${tag}, for example ${example}. Then the reply.`,
+    `emotion: one of ${EMOTIONS.join(', ')}. gesture: one of ${GESTURES.join(', ')} (nod/shake sparingly, laugh/dance only when it fits). intensity: 0.2 to 1.0, how strongly you feel it.` +
+      (options.wantsTitle ? ' title: a 2-5 word name for this conversation.' : ''),
   ];
-  if (options.wantsTitle) {
-    lines.push('title is a 2-5 word name for this conversation.');
-  }
   return lines.join('\n');
 }
 

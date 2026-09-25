@@ -11,8 +11,21 @@ import {
   stubUpstream,
   testEnv,
 } from './helpers';
+import type { TurnEvent } from '@flare/contracts';
+import {
+  chatStreamResponse,
+  eventOfType,
+  eventsOfType,
+  lastEvent,
+  mp3Response,
+  readTurnEvents,
+} from './stream-helpers';
 
 const webmBytes = new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 1, 2, 3, 4]);
+
+function respond(json: Record<string, unknown>, ctx?: ExecutionContext) {
+  return call('/api/turns/respond', { userId: 'user_a', json, ...(ctx ? { ctx } : {}) });
+}
 
 describe('POST /api/turns/transcribe', () => {
   it('rejects bodies that are not audio', async () => {
@@ -93,88 +106,122 @@ describe('POST /api/turns/transcribe', () => {
   });
 });
 
-describe('POST /api/turns/respond', () => {
-  it('validates the transcript', async () => {
-    const response = await call('/api/turns/respond', {
-      userId: 'user_a',
-      json: { transcript: '' },
-    });
+describe('POST /api/turns/respond (server-sent events)', () => {
+  it('validates the transcript before streaming', async () => {
+    const response = await respond({ transcript: '' });
     expect(response.status).toBe(400);
   });
 
-  it('starts a conversation, persists both messages, and titles it in one model call', async () => {
+  it('streams meta, expression, sentences with audio, and a persisted reply', async () => {
     const { calls } = stubUpstream({
       chat: () =>
-        chatResponse({
-          reply: 'Hi! Lovely to meet you.',
-          emotion: 'happy',
-          gesture: 'nod',
-          title: 'First hello',
-        }),
+        chatStreamResponse(
+          '[happy|nod|0.7|First hello]\nHi Ada! Lovely to meet you. What brings you here today?'
+        ),
+      speech: () => mp3Response(),
     });
 
     const { ctx, settle } = createExecutionContext();
-    const response = await call('/api/turns/respond', {
-      userId: 'user_a',
-      json: { transcript: 'Hello, I am Ada.' },
-      ctx,
-    });
+    const response = await respond({ transcript: 'Hello, I am Ada.', language: 'en' }, ctx);
     expect(response.status).toBe(200);
-    const body = await readJson<{
-      conversation: { id: string; title: string };
-      isNewConversation: boolean;
-      userMessage: { role: string; content: string };
-      assistantMessage: { role: string; content: string; emotion: string; gesture: string };
-    }>(response);
+    expect(response.headers.get('content-type')).toContain('text/event-stream');
 
-    expect(body.isNewConversation).toBe(true);
-    expect(body.conversation.title).toBe('First hello');
-    expect(body.userMessage).toMatchObject({ role: 'user', content: 'Hello, I am Ada.' });
-    expect(body.assistantMessage).toMatchObject({
-      role: 'assistant',
-      content: 'Hi! Lovely to meet you.',
+    const events = await readTurnEvents<TurnEvent>(response);
+    const types = events.map((e) => e.type);
+    expect(types[0]).toBe('meta');
+    expect(types[1]).toBe('expression');
+    expect(types.at(-1)).toBe('done');
+    expect(types).not.toContain('error');
+
+    const meta = eventOfType(events, 'meta');
+    expect(meta.isNewConversation).toBe(true);
+    expect(meta.language).toBe('en');
+
+    const expression = eventOfType(events, 'expression');
+    expect(expression.expression).toEqual({ emotion: 'happy', gesture: 'nod', intensity: 0.7 });
+
+    const sentences = eventsOfType(events, 'sentence');
+    expect(sentences.map((s) => s.text)).toEqual([
+      'Hi Ada!',
+      'Lovely to meet you.',
+      'What brings you here today?',
+    ]);
+
+    const audio = eventsOfType(events, 'audio');
+    expect(audio.map((a) => a.index)).toEqual([0, 1, 2]);
+    expect(audio[0]?.mimeType).toBe('audio/mpeg');
+    expect(Buffer.from(audio[0]?.data ?? '', 'base64')).toEqual(Buffer.from([0xff, 0xfb, 0x90, 0]));
+
+    const done = lastEvent(events, 'done');
+    expect(done.assistantMessage).toMatchObject({
+      content: 'Hi Ada! Lovely to meet you. What brings you here today?',
       emotion: 'happy',
       gesture: 'nod',
+      intensity: 0.7,
+      language: 'en',
     });
+    expect(done.conversation.title).toBe('First hello');
 
     await settle();
-    expect(calls.filter((c) => c.url.endsWith('/chat/completions'))).toHaveLength(1);
     expect(await countRows('messages')).toBe(2);
-
-    const request = JSON.parse(String(calls[0]?.init.body)) as {
-      response_format: { type: string };
-      messages: Array<{ role: string; content: string }>;
+    // One streaming chat call, three sentence syntheses.
+    expect(calls.filter((c) => c.url.endsWith('/chat/completions'))).toHaveLength(1);
+    expect(calls.filter((c) => c.url.endsWith('/audio/speech'))).toHaveLength(3);
+    const chatRequest = JSON.parse(String(calls[0]?.init.body)) as {
+      stream: boolean;
+      messages: Array<{ content: string }>;
     };
-    expect(request.response_format).toEqual({ type: 'json_object' });
-    expect(request.messages[0]?.content).toContain('"title"');
+    expect(chatRequest.stream).toBe(true);
+    expect(chatRequest.messages[0]?.content).toContain('[emotion|gesture|intensity|title]');
   });
 
-  it('continues a warm conversation with context and no title request', async () => {
+  it('answers in the spoken language with a native voice and no title request on warm threads', async () => {
     const id = await seedConversation('user_a', { title: 'Existing' });
-    await seedMessages(id, 4);
+    await seedMessages(id, 4, { startAt: Math.floor(Date.now() / 1000) - 86_400 });
+    await call('/api/settings', {
+      method: 'PATCH',
+      userId: 'user_a',
+      json: { voice: 'am_michael' },
+    });
     const { calls } = stubUpstream({
-      chat: () => chatResponse({ reply: 'Still here.', emotion: 'neutral', gesture: 'none' }),
+      chat: () => chatStreamResponse('[thoughtful|none|0.4]\nClaro, sigo aquí.'),
+      speech: () => mp3Response(),
     });
 
-    const body = await readJson<{
-      conversation: { id: string; title: string };
-      isNewConversation: boolean;
-    }>(
-      await call('/api/turns/respond', {
-        userId: 'user_a',
-        json: { conversationId: id, transcript: 'Are you there?' },
-      })
+    const events = await readTurnEvents<TurnEvent>(
+      await respond({ conversationId: id, transcript: '¿Sigues ahí?', language: 'es' })
     );
-    expect(body.isNewConversation).toBe(false);
-    expect(body.conversation).toMatchObject({ id, title: 'Existing' });
+    const meta = eventOfType(events, 'meta');
+    expect(meta.isNewConversation).toBe(false);
+    expect(meta.language).toBe('es');
 
-    const request = JSON.parse(String(calls[0]?.init.body)) as {
+    const chatRequest = JSON.parse(String(calls[0]?.init.body)) as {
       messages: Array<{ role: string; content: string }>;
     };
-    expect(request.messages[0]?.content).not.toContain('"title"');
+    expect(chatRequest.messages[0]?.content).toContain('plain Spanish');
+    expect(chatRequest.messages[0]?.content).not.toContain('title');
     // system + 4 history + the new user turn
-    expect(request.messages).toHaveLength(6);
-    expect(request.messages.at(-1)).toEqual({ role: 'user', content: 'Are you there?' });
+    expect(chatRequest.messages).toHaveLength(6);
+
+    const speech = JSON.parse(String(calls.at(-1)?.init.body)) as { voice: string };
+    expect(speech.voice).toBe('em_alex'); // masculine Spanish, matching the user's register
+
+    const done = lastEvent(events, 'done');
+    expect(done.type).toBe('done');
+    expect(done.assistantMessage.language).toBe('es');
+  });
+
+  it('copes with a reply that has no tag line', async () => {
+    stubUpstream({
+      chat: () => chatStreamResponse('Just plain text here. Nothing tagged at all.'),
+      speech: () => mp3Response(),
+    });
+    const events = await readTurnEvents<TurnEvent>(await respond({ transcript: 'Hi' }));
+    const expression = eventOfType(events, 'expression');
+    expect(expression.expression.emotion).toBe('neutral');
+    const done = lastEvent(events, 'done');
+    expect(done.type).toBe('done');
+    expect(done.assistantMessage.content).toBe('Just plain text here. Nothing tagged at all.');
   });
 
   it('branches into a new conversation after 30 minutes of inactivity', async () => {
@@ -182,67 +229,56 @@ describe('POST /api/turns/respond', () => {
       updatedAt: Math.floor(Date.now() / 1000) - 31 * 60,
     });
     stubUpstream({
-      chat: () =>
-        chatResponse({ reply: 'Welcome back.', emotion: 'happy', gesture: 'none', title: 'Back' }),
+      chat: () => chatStreamResponse('[happy|none|0.5|Back]\nWelcome back.'),
+      speech: () => mp3Response(),
     });
-
-    const body = await readJson<{ conversation: { id: string }; isNewConversation: boolean }>(
-      await call('/api/turns/respond', {
-        userId: 'user_a',
-        json: { conversationId: stale, transcript: 'Hi again' },
-      })
+    const events = await readTurnEvents<TurnEvent>(
+      await respond({ conversationId: stale, transcript: 'Hi again' })
     );
-    expect(body.isNewConversation).toBe(true);
-    expect(body.conversation.id).not.toBe(stale);
+    const meta = eventOfType(events, 'meta');
+    expect(meta.isNewConversation).toBe(true);
+    expect(meta.conversation.id).not.toBe(stale);
     expect(await countRows('conversations')).toBe(2);
   });
 
   it("does not continue another user's conversation", async () => {
     const theirs = await seedConversation('user_b');
     stubUpstream({
-      chat: () =>
-        chatResponse({ reply: 'Hello.', emotion: 'neutral', gesture: 'none', title: 'Hello' }),
+      chat: () => chatStreamResponse('[neutral|none|0.5|Hello]\nHello.'),
+      speech: () => mp3Response(),
     });
-    const body = await readJson<{ conversation: { id: string }; isNewConversation: boolean }>(
-      await call('/api/turns/respond', {
-        userId: 'user_a',
-        json: { conversationId: theirs, transcript: 'Hi' },
-      })
+    const events = await readTurnEvents<TurnEvent>(
+      await respond({ conversationId: theirs, transcript: 'Hi' })
     );
-    expect(body.isNewConversation).toBe(true);
-    expect(body.conversation.id).not.toBe(theirs);
+    const meta = eventOfType(events, 'meta');
+    expect(meta.isNewConversation).toBe(true);
+    expect(meta.conversation.id).not.toBe(theirs);
     expect(await countRows('messages', `conversation_id = '${theirs}'`)).toBe(0);
   });
 
-  it('degrades gracefully when the model improvises enum values or breaks JSON', async () => {
-    stubUpstream({
-      chat: () => chatResponse({ reply: '**Sure!**', emotion: 'ecstatic', gesture: 'moonwalk' }),
-    });
-    let body = await readJson<{
-      assistantMessage: { content: string; emotion: string; gesture: string };
-    }>(await call('/api/turns/respond', { userId: 'user_a', json: { transcript: 'Dance!' } }));
-    expect(body.assistantMessage).toMatchObject({
-      content: 'Sure!',
-      emotion: 'neutral',
-      gesture: 'none',
-    });
-
-    stubUpstream({ chat: () => chatResponse('Plain text, no JSON at all.') });
-    body = await readJson(
-      await call('/api/turns/respond', { userId: 'user_a', json: { transcript: 'Again?' } })
-    );
-    expect(body.assistantMessage.content).toBe('Plain text, no JSON at all.');
+  it('emits an error event and keeps no assistant row when the model fails', async () => {
+    stubUpstream({ chat: () => new Response('nope', { status: 503 }) });
+    const events = await readTurnEvents<TurnEvent>(await respond({ transcript: 'Hi' }));
+    expect(events[0]?.type).toBe('meta');
+    const error = lastEvent(events, 'error');
+    expect(error.type).toBe('error');
+    expect(error.code).toBe('upstream_error');
+    expect(await countRows('messages', "role = 'assistant'")).toBe(0);
   });
 
-  it('returns 502 and persists nothing from the model when it fails', async () => {
-    stubUpstream({ chat: () => new Response('nope', { status: 503 }) });
-    const response = await call('/api/turns/respond', {
-      userId: 'user_a',
-      json: { transcript: 'Hi' },
+  it('still completes the reply when one sentence fails to synthesise', async () => {
+    let speechCalls = 0;
+    stubUpstream({
+      chat: () =>
+        chatStreamResponse('[amused|laugh|0.8|Jokes]\nFirst one works. Second one breaks.'),
+      speech: () => {
+        speechCalls += 1;
+        return speechCalls === 2 ? new Response('boom', { status: 500 }) : mp3Response();
+      },
     });
-    expect(response.status).toBe(502);
-    // The user's transcript is kept so the thread is not lost; no assistant row exists.
-    expect(await countRows('messages', "role = 'assistant'")).toBe(0);
+    const events = await readTurnEvents<TurnEvent>(await respond({ transcript: 'Tell me a joke' }));
+    expect(eventsOfType(events, 'audio').map((e) => e.index)).toEqual([0]);
+    expect(events.at(-1)?.type).toBe('done');
   });
 
   it('folds the oldest messages into a summary once the thread grows past the threshold', async () => {
@@ -251,21 +287,21 @@ describe('POST /api/turns/respond', () => {
     await seedMessages(id, 19, { startAt: Math.floor(Date.now() / 1000) - 2 * 86_400 });
     const { calls } = stubUpstream({
       chat: ({ init }) => {
-        const request = JSON.parse(String(init.body)) as { messages: Array<{ content: string }> };
-        const isSummary = request.messages[0]?.content.startsWith('Summarise');
-        return isSummary
-          ? chatResponse('Ada introduced herself and asked about the weather.')
-          : chatResponse({ reply: 'Noted.', emotion: 'thoughtful', gesture: 'none' });
+        const request = JSON.parse(String(init.body)) as {
+          stream?: boolean;
+          messages: Array<{ content: string }>;
+        };
+        return request.stream
+          ? chatStreamResponse('[thoughtful|none|0.5]\nNoted.')
+          : chatResponse('Ada introduced herself and asked about the weather.');
       },
+      speech: () => mp3Response(),
     });
 
     const { ctx, settle } = createExecutionContext();
-    const response = await call('/api/turns/respond', {
-      userId: 'user_a',
-      json: { conversationId: id, transcript: 'Message twenty' },
-      ctx,
-    });
-    expect(response.status).toBe(200);
+    const response = await respond({ conversationId: id, transcript: 'Message twenty' }, ctx);
+    const events = await readTurnEvents<TurnEvent>(response);
+    expect(events.at(-1)?.type).toBe('done');
     await settle();
 
     expect(calls.filter((c) => c.url.endsWith('/chat/completions'))).toHaveLength(2);
@@ -273,7 +309,6 @@ describe('POST /api/turns/respond', () => {
     // 19 seeded + 2 new = 21 live, minus the 10 folded = 11 live messages remain.
     expect(await countRows('messages', "role != 'summary'")).toBe(11);
 
-    // The summary now leads the context on the next turn.
     const next = await readJson<{ messages: Array<{ role: string }> }>(
       await call(`/api/conversations/${id}`, { userId: 'user_a' })
     );

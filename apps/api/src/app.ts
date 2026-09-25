@@ -4,10 +4,12 @@ import { corsMiddleware } from './middleware/cors';
 import { onError, onNotFound } from './middleware/error-handler';
 import { rateLimitBy } from './middleware/rate-limit';
 import { requestContext } from './middleware/request-context';
+import { adminRoutes } from './routes/admin';
 import { conversationsRoutes } from './routes/conversations';
 import { healthRoutes } from './routes/health';
 import { invitesRoutes } from './routes/invites';
 import { messagesRoutes } from './routes/messages';
+import { openApiRoutes } from './routes/openapi';
 import { settingsRoutes } from './routes/settings';
 import { turnsRoutes } from './routes/turns';
 import { voicesRoutes } from './routes/voices';
@@ -30,6 +32,7 @@ export function createApp() {
   // Public
   app.route('/', healthRoutes);
   app.route('/api/health', healthRoutes);
+  app.route('/api', openApiRoutes);
   app.route('/api/invites', invitesRoutes);
 
   // Protected
@@ -44,6 +47,7 @@ export function createApp() {
   api.route('/turns', turnsRoutes);
   api.route('/messages', messagesRoutes);
   api.route('/voices', voicesRoutes);
+  api.route('/admin', adminRoutes);
   app.route('/api', api);
 
   return app;

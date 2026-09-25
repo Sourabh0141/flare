@@ -33,6 +33,15 @@ export interface ChatCompletionResult {
   usage: { promptTokens: number; completionTokens: number } | null;
 }
 
+export interface ChatStreamRequest {
+  model: string;
+  messages: ChatMessage[];
+  temperature?: number;
+  maxTokens?: number;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+}
+
 export interface TranscriptionRequest {
   model: string;
   audio: Blob;
@@ -57,6 +66,10 @@ export interface SpeechRequest {
 export interface SpeechResult {
   body: ReadableStream<Uint8Array>;
   contentType: string;
+}
+
+interface ReleasableResponse extends Response {
+  release?: () => void;
 }
 
 export class DeepInfraClient {
@@ -128,6 +141,95 @@ export class DeepInfraClient {
   }
 
   /**
+   * Streams a chat completion, yielding content deltas as they arrive. The timeout covers
+   * the whole stream; the caller's signal can end it early.
+   */
+  async *chatStream(request: ChatStreamRequest): AsyncGenerator<string, void, void> {
+    const response = (await this.send(
+      '/chat/completions',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          model: request.model,
+          messages: request.messages,
+          temperature: request.temperature ?? 0.7,
+          max_tokens: request.maxTokens ?? 256,
+          stream: true,
+        }),
+        ...(request.signal ? { signal: request.signal } : {}),
+      },
+      request.timeoutMs ?? 25_000,
+      'chat completion',
+      { keepTimerForBody: true }
+    )) as ReleasableResponse;
+
+    if (!response.body) {
+      response.release?.();
+      throw new ApiError('upstream_error', 'The language model returned no stream.');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let sawContent = false;
+
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        let newline = buffer.indexOf('\n');
+        while (newline >= 0) {
+          const line = buffer.slice(0, newline).trim();
+          buffer = buffer.slice(newline + 1);
+          newline = buffer.indexOf('\n');
+
+          if (!line.startsWith('data:')) continue;
+          const payload = line.slice(5).trim();
+          if (payload === '[DONE]') {
+            if (!sawContent) {
+              throw new ApiError(
+                'upstream_error',
+                'The language model returned an empty response.'
+              );
+            }
+            return;
+          }
+
+          let chunk: { choices?: Array<{ delta?: { content?: unknown } }> };
+          try {
+            chunk = JSON.parse(payload) as typeof chunk;
+          } catch {
+            continue; // A partial or malformed frame; the next one usually recovers.
+          }
+          const content = chunk.choices?.[0]?.delta?.content;
+          if (typeof content === 'string' && content.length > 0) {
+            sawContent = true;
+            yield content;
+          }
+        }
+      }
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      if (isTimeoutError(error) || (error instanceof Error && error.name === 'AbortError')) {
+        throw new ApiError('upstream_timeout', 'The language model took too long to reply.', {
+          cause: error,
+        });
+      }
+      throw new ApiError('upstream_error', 'The language model stream failed.', { cause: error });
+    } finally {
+      reader.releaseLock();
+      response.release?.();
+    }
+
+    if (!sawContent) {
+      throw new ApiError('upstream_error', 'The language model returned an empty response.');
+    }
+  }
+
+  /**
    * Text-to-speech. The response body is returned as a stream so the route can pipe it to
    * the client without buffering the whole file in the Worker.
    */
@@ -161,12 +263,21 @@ export class DeepInfraClient {
     };
   }
 
+  /** Text-to-speech, fully buffered. Used for short sentence chunks inside a reply stream. */
+  async speakToBuffer(
+    request: SpeechRequest
+  ): Promise<{ bytes: ArrayBuffer; contentType: string }> {
+    const speech = await this.speak(request);
+    const bytes = await new Response(speech.body).arrayBuffer();
+    return { bytes, contentType: speech.contentType };
+  }
+
   private async send(
     path: string,
     init: RequestInit,
     timeoutMs: number,
     operation: string,
-    options: { releaseOnHeaders?: boolean } = {}
+    options: { releaseOnHeaders?: boolean; keepTimerForBody?: boolean } = {}
   ): Promise<Response> {
     const parentSignal = init.signal instanceof AbortSignal ? init.signal : undefined;
     const { signal, release } = timeoutSignal(timeoutMs, parentSignal);
@@ -182,9 +293,7 @@ export class DeepInfraClient {
         throw new ApiError(
           'upstream_timeout',
           `The ${operation} service took too long to respond.`,
-          {
-            cause: error,
-          }
+          { cause: error }
         );
       }
       throw new ApiError('upstream_error', `Could not reach the ${operation} service.`, {
@@ -203,12 +312,15 @@ export class DeepInfraClient {
 
     if (options.releaseOnHeaders) {
       release();
-    } else {
-      // Body reads happen in the caller; keep the timer alive until they complete by
-      // wrapping the response in one that releases when consumed.
-      response = withRelease(response, release);
+      return response;
     }
-    return response;
+    if (options.keepTimerForBody) {
+      // The caller consumes the body itself and releases when finished.
+      (response as ReleasableResponse).release = release;
+      return response;
+    }
+    // Body reads happen in the caller; keep the timer alive until they complete.
+    return withRelease(response, release);
   }
 }
 

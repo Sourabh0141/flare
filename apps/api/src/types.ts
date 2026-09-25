@@ -7,6 +7,8 @@ export interface AppVariables {
   logger: Logger;
   config: AppConfig;
   userId: string;
+  /** Verified session token claims; used for role checks. */
+  claims: Record<string, unknown>;
 }
 
 export type AppEnv = {

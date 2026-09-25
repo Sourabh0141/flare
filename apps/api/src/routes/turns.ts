@@ -1,10 +1,14 @@
+import { Buffer } from 'node:buffer';
 import { Hono } from 'hono';
+import { streamSSE } from 'hono/streaming';
 import {
   ACCEPTED_AUDIO_TYPES,
   LIMITS,
   respondRequestSchema,
-  type RespondResponse,
+  speakableLanguage,
+  voiceForLanguage,
   type TranscribeResponse,
+  type TurnEvent,
 } from '@flare/contracts';
 import {
   countUserTurnsSince,
@@ -21,7 +25,7 @@ import { ApiError } from '../lib/errors';
 import { rateLimitBy } from '../middleware/rate-limit';
 import { validate } from '../middleware/validate';
 import { DeepInfraClient } from '../services/deepinfra';
-import { generateReply } from '../services/responder';
+import { sanitiseSpeech, streamReply } from '../services/responder';
 import { maybeSummarize } from '../services/summarizer';
 import type { AppEnv } from '../types';
 
@@ -90,6 +94,7 @@ turnsRoutes.post('/transcribe', async (c) => {
     bytes: audio.size,
     durationMs: Date.now() - startedAt,
     characters: result.text.length,
+    language: result.language,
   });
 
   if (!result.text) {
@@ -105,14 +110,15 @@ turnsRoutes.post('/transcribe', async (c) => {
 
 /**
  * POST /api/turns/respond
- * Persists the user's transcript, asks the model for a reply with emotion and gesture, and
- * persists that too. Summarisation of long conversations runs after the response is sent.
+ * Persists the user's transcript, streams the model's reply as server-sent events, and
+ * synthesises each sentence as soon as it is complete so the first audio arrives while the
+ * model is still writing. Summarisation of long conversations runs after the stream ends.
  */
 turnsRoutes.post('/respond', validate('json', respondRequestSchema), async (c) => {
   const userId = c.get('userId');
   const logger = c.get('logger');
   const { deepinfra, dailyTurnLimit } = c.get('config');
-  const { conversationId, transcript } = c.req.valid('json');
+  const { conversationId, transcript, language: spokenLanguage } = c.req.valid('json');
   const db = c.env.DB;
 
   const user = await getOrCreateUser(db, userId);
@@ -137,55 +143,121 @@ turnsRoutes.post('/respond', validate('json', respondRequestSchema), async (c) =
 
   const context = await getConversationContext(db, conversation.id);
   const wantsTitle = isNewConversation || context.messages.length === 0;
+  const language = speakableLanguage(spokenLanguage);
+  const voice = voiceForLanguage(language, user.voice);
 
   const turnAt = nowSeconds();
   const userMessage = await insertMessage(db, {
     conversationId: conversation.id,
     role: 'user',
     content: transcript,
+    language,
     createdAt: turnAt,
   });
 
   const client = new DeepInfraClient({ apiKey: deepinfra.apiKey });
-  const turn = await generateReply(client, {
-    model: deepinfra.llmModel,
-    displayName: user.displayName,
-    persona: user.persona,
-    context,
-    transcript,
-    wantsTitle,
-    logger,
+  const executionCtx = c.executionCtx;
+  const activeConversation = conversation;
+
+  return streamSSE(c, async (stream) => {
+    const send = (event: TurnEvent) =>
+      stream.writeSSE({ event: 'turn', data: JSON.stringify(event) });
+
+    await send({
+      type: 'meta',
+      conversation: activeConversation,
+      isNewConversation,
+      userMessage,
+      turnsRemainingToday: Math.max(0, dailyTurnLimit - turnsToday - 1),
+      language,
+    });
+
+    // Sentence audio is synthesised as each sentence completes and delivered in order.
+    let audioChain: Promise<void> = Promise.resolve();
+    const speakSentence = (index: number, text: string) => {
+      const synthesis = client.speakToBuffer({
+        model: deepinfra.ttsModel,
+        voice,
+        text: sanitiseSpeech(text),
+        signal: c.req.raw.signal,
+      });
+      audioChain = audioChain.then(async () => {
+        try {
+          const { bytes, contentType } = await synthesis;
+          await send({
+            type: 'audio',
+            index,
+            mimeType: contentType,
+            data: Buffer.from(bytes).toString('base64'),
+          });
+        } catch (error) {
+          logger.warn('tts.sentence_failed', { index, error });
+        }
+      });
+    };
+
+    try {
+      const result = await streamReply(
+        client,
+        {
+          model: deepinfra.llmModel,
+          displayName: user.displayName,
+          persona: user.persona,
+          language,
+          context,
+          transcript,
+          wantsTitle,
+          logger,
+          signal: c.req.raw.signal,
+        },
+        {
+          onHeader: (header) => send({ type: 'expression', expression: header.expression }),
+          onDelta: (text) => send({ type: 'delta', text }),
+          onSentence: async (index, text) => {
+            await send({ type: 'sentence', index, text });
+            speakSentence(index, text);
+          },
+        }
+      );
+
+      await audioChain;
+
+      const assistantMessage = await insertMessage(db, {
+        conversationId: activeConversation.id,
+        role: 'assistant',
+        content: result.reply,
+        emotion: result.header.expression.emotion,
+        gesture: result.header.expression.gesture,
+        intensity: result.header.expression.intensity,
+        language,
+        createdAt: turnAt + 1,
+      });
+
+      let finalConversation = { ...activeConversation, updatedAt: assistantMessage.createdAt };
+      if (wantsTitle && result.header.title) {
+        await setGeneratedTitle(db, activeConversation.id, userId, result.header.title);
+        finalConversation = { ...finalConversation, title: result.header.title };
+      }
+
+      executionCtx.waitUntil(
+        maybeSummarize(client, {
+          db,
+          conversationId: activeConversation.id,
+          model: deepinfra.llmModel,
+          logger,
+        }).catch((error: unknown) => logger.error('summary.failed', { error }))
+      );
+
+      await send({ type: 'done', assistantMessage, conversation: finalConversation });
+    } catch (error) {
+      const apiError =
+        error instanceof ApiError
+          ? error
+          : new ApiError('internal_error', 'Something went wrong while replying.', {
+              cause: error,
+            });
+      logger.error('turn.failed', { code: apiError.code, error: apiError });
+      await send({ type: 'error', code: apiError.code, message: apiError.message });
+    }
   });
-
-  const assistantMessage = await insertMessage(db, {
-    conversationId: conversation.id,
-    role: 'assistant',
-    content: turn.reply,
-    emotion: turn.emotion,
-    gesture: turn.gesture,
-    createdAt: turnAt + 1,
-  });
-
-  if (wantsTitle && turn.title) {
-    await setGeneratedTitle(db, conversation.id, userId, turn.title);
-    conversation = { ...conversation, title: turn.title };
-  }
-
-  c.executionCtx.waitUntil(
-    maybeSummarize(client, {
-      db,
-      conversationId: conversation.id,
-      model: deepinfra.llmModel,
-      logger,
-    }).catch((error: unknown) => logger.error('summary.failed', { error }))
-  );
-
-  const body: RespondResponse = {
-    conversation: { ...conversation, updatedAt: assistantMessage.createdAt },
-    isNewConversation,
-    userMessage,
-    assistantMessage,
-    turnsRemainingToday: Math.max(0, dailyTurnLimit - turnsToday - 1),
-  };
-  return c.json(body);
 });

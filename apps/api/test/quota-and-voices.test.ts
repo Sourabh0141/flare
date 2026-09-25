@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
+import { call, readJson, seedConversation, seedMessages, stubUpstream, testEnv } from './helpers';
+import type { TurnEvent } from '@flare/contracts';
 import {
-  call,
-  chatResponse,
-  readJson,
-  seedConversation,
-  seedMessages,
-  stubUpstream,
-  testEnv,
-} from './helpers';
+  chatStreamResponse,
+  eventOfType,
+  lastEvent,
+  mp3Response,
+  readTurnEvents,
+} from './stream-helpers';
 
 describe('daily turn cap', () => {
   it('reports remaining turns and refuses once the cap is reached', async () => {
@@ -15,16 +15,17 @@ describe('daily turn cap', () => {
     // DAILY_TURN_LIMIT is 5 in tests; seed 4 user turns today (8 alternating messages).
     await seedMessages(id, 8, { startAt: Math.floor(Date.now() / 1000) - 100 });
     stubUpstream({
-      chat: () => chatResponse({ reply: 'Okay.', emotion: 'neutral', gesture: 'none' }),
+      chat: () => chatStreamResponse('[neutral|none|0.5]\nOkay then.'),
+      speech: () => mp3Response(),
     });
 
-    const fifth = await readJson<{ turnsRemainingToday: number }>(
+    const events = await readTurnEvents<TurnEvent>(
       await call('/api/turns/respond', {
         userId: 'user_a',
         json: { conversationId: id, transcript: 'Fifth turn' },
       })
     );
-    expect(fifth.turnsRemainingToday).toBe(0);
+    expect(eventOfType(events, 'meta').turnsRemainingToday).toBe(0);
 
     const sixth = await call('/api/turns/respond', {
       userId: 'user_a',
@@ -39,14 +40,16 @@ describe('daily turn cap', () => {
     const id = await seedConversation('user_a');
     await seedMessages(id, 20, { startAt: Math.floor(Date.now() / 1000) - 3 * 86_400 });
     stubUpstream({
-      chat: () => chatResponse({ reply: 'Morning.', emotion: 'happy', gesture: 'none' }),
+      chat: () => chatStreamResponse('[happy|none|0.5]\nMorning to you.'),
+      speech: () => mp3Response(),
     });
-    const response = await call('/api/turns/respond', {
-      userId: 'user_a',
-      json: { conversationId: id, transcript: 'New day' },
-    });
-    expect(response.status).toBe(200);
-    expect((await readJson<{ turnsRemainingToday: number }>(response)).turnsRemainingToday).toBe(4);
+    const events = await readTurnEvents<TurnEvent>(
+      await call('/api/turns/respond', {
+        userId: 'user_a',
+        json: { conversationId: id, transcript: 'New day' },
+      })
+    );
+    expect(eventOfType(events, 'meta').turnsRemainingToday).toBe(4);
   });
 });
 
@@ -58,13 +61,11 @@ describe('personality and voice preferences', () => {
       json: { persona: 'witty', voice: 'bf_emma' },
     });
     const { calls } = stubUpstream({
-      chat: () =>
-        chatResponse({ reply: 'Ha.', emotion: 'amused', gesture: 'laugh', title: 'Jokes' }),
-      speech: () =>
-        new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'audio/mpeg' } }),
+      chat: () => chatStreamResponse('[amused|laugh|0.8|Jokes]\nHa, that one lands.'),
+      speech: () => mp3Response(),
     });
 
-    const turn = await readJson<{ assistantMessage: { id: string } }>(
+    const events = await readTurnEvents<TurnEvent>(
       await call('/api/turns/respond', { userId: 'user_a', json: { transcript: 'Tell me a joke' } })
     );
     const chatRequest = JSON.parse(String(calls[0]?.init.body)) as {
@@ -72,21 +73,38 @@ describe('personality and voice preferences', () => {
     };
     expect(chatRequest.messages[0]?.content).toContain('quick and dry');
 
-    const audio = await call(`/api/messages/${turn.assistantMessage.id}/audio`, {
+    const done = lastEvent(events, 'done');
+    const audio = await call(`/api/messages/${done.assistantMessage.id}/audio`, {
       userId: 'user_a',
     });
     expect(audio.status).toBe(200);
     const speechRequest = JSON.parse(String(calls.at(-1)?.init.body)) as { voice: string };
     expect(speechRequest.voice).toBe('bf_emma');
   });
+
+  it('replays a reply spoken in another language with a native voice', async () => {
+    stubUpstream({
+      chat: () => chatStreamResponse('[happy|none|0.5|Bonjour]\nBonjour, ravie de vous parler.'),
+      speech: () => mp3Response(),
+    });
+    const events = await readTurnEvents<TurnEvent>(
+      await call('/api/turns/respond', {
+        userId: 'user_a',
+        json: { transcript: 'Bonjour', language: 'fr-FR' },
+      })
+    );
+    const done = lastEvent(events, 'done');
+    expect(done.assistantMessage.language).toBe('fr');
+
+    const { calls } = stubUpstream({ speech: () => mp3Response() });
+    await call(`/api/messages/${done.assistantMessage.id}/audio`, { userId: 'user_a' });
+    expect((JSON.parse(String(calls[0]?.init.body)) as { voice: string }).voice).toBe('ff_siwis');
+  });
 });
 
 describe('GET /api/voices/:id/preview', () => {
   it('speaks the fixed sample in the requested voice', async () => {
-    const { calls } = stubUpstream({
-      speech: () =>
-        new Response(new Uint8Array([9, 9]), { headers: { 'content-type': 'audio/mpeg' } }),
-    });
+    const { calls } = stubUpstream({ speech: () => mp3Response([9, 9]) });
     const response = await call('/api/voices/am_adam/preview', { userId: 'user_a' });
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toContain('86400');

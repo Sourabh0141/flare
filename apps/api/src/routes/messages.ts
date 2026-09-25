@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { SPEECH_CONTENT_TYPE } from '@flare/contracts';
+import { SPEECH_CONTENT_TYPE, voiceForLanguage } from '@flare/contracts';
 import { getOrCreateUser, getOwnedMessage } from '@flare/db';
 import { ApiError } from '../lib/errors';
 import { rateLimitBy } from '../middleware/rate-limit';
@@ -15,10 +15,10 @@ messagesRoutes.use(
 
 /**
  * GET /api/messages/:id/audio
- * Streams synthesized speech for one of the caller's assistant messages in the caller's
- * chosen voice. Binding speech to a stored message (rather than accepting free text) keeps
- * the endpoint from being used as an open text-to-speech proxy, and lets the client replay
- * past replies.
+ * Streams synthesized speech for one of the caller's assistant messages, in the caller's
+ * chosen voice or the native voice for the language it was spoken in. Binding speech to a
+ * stored message (rather than accepting free text) keeps the endpoint from being used as an
+ * open text-to-speech proxy, and lets the client replay past replies.
  */
 messagesRoutes.get('/:id/audio', async (c) => {
   const userId = c.get('userId');
@@ -28,18 +28,19 @@ messagesRoutes.get('/:id/audio', async (c) => {
   }
 
   const user = await getOrCreateUser(c.env.DB, userId);
+  const voice = voiceForLanguage(message.language ?? 'en', user.voice);
   const { deepinfra } = c.get('config');
   const client = new DeepInfraClient({ apiKey: deepinfra.apiKey });
   const speech = await client.speak({
     model: deepinfra.ttsModel,
-    voice: user.voice,
+    voice,
     text: message.content,
     signal: c.req.raw.signal,
   });
 
   c.get('logger').info('tts.started', {
     messageId: message.id,
-    voice: user.voice,
+    voice,
     characters: message.content.length,
   });
 

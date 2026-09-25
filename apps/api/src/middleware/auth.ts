@@ -25,15 +25,14 @@ export const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
   const { clerk, allowedOrigins } = c.get('config');
   const authorizedParties = allowedOrigins.filter((o) => !o.includes('*'));
 
-  let subject: string | undefined;
+  let payload: Record<string, unknown>;
   try {
-    const payload = await verifyToken(token.trim(), {
+    payload = (await verifyToken(token.trim(), {
       ...(clerk.jwtKey ? { jwtKey: clerk.jwtKey } : {}),
       ...(clerk.secretKey ? { secretKey: clerk.secretKey } : {}),
       ...(authorizedParties.length > 0 ? { authorizedParties } : {}),
       clockSkewInMs: 10_000,
-    });
-    subject = payload.sub;
+    })) as unknown as Record<string, unknown>;
   } catch (error) {
     c.get('logger').warn('auth.rejected', {
       reason: error instanceof Error ? error.message : error,
@@ -41,11 +40,13 @@ export const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
     throw new ApiError('unauthorized', 'Your session is invalid or has expired. Sign in again.');
   }
 
+  const subject = typeof payload.sub === 'string' ? payload.sub : '';
   if (!subject) {
     throw new ApiError('unauthorized', 'The session token has no subject.');
   }
 
   c.set('userId', subject);
+  c.set('claims', payload);
   c.set('logger', c.get('logger').child({ userId: subject }));
   await next();
 };

@@ -87,6 +87,47 @@ describe('conversations', () => {
     expect(body.conversation.title).toBe('Weekend plans');
   });
 
+  it('pins conversations to the top and archives them out of the list', async () => {
+    const base = 1_700_000_000;
+    const older = await seedConversation('user_a', { title: 'older', updatedAt: base });
+    const newer = await seedConversation('user_a', { title: 'newer', updatedAt: base + 10 });
+
+    const pinned = await readJson<{ conversation: ConversationDto & { pinned: boolean } }>(
+      await call(`/api/conversations/${older}`, {
+        method: 'PATCH',
+        userId: 'user_a',
+        json: { pinned: true },
+      })
+    );
+    expect(pinned.conversation.pinned).toBe(true);
+    // Pinning does not count as activity.
+    expect(pinned.conversation.updatedAt).toBe(base);
+
+    const list = await readJson<{ conversations: ConversationDto[] }>(
+      await call('/api/conversations', { userId: 'user_a' })
+    );
+    expect(list.conversations.map((c) => c.title)).toEqual(['older', 'newer']);
+
+    await call(`/api/conversations/${newer}`, {
+      method: 'PATCH',
+      userId: 'user_a',
+      json: { archived: true },
+    });
+    const active = await readJson<{ conversations: ConversationDto[] }>(
+      await call('/api/conversations', { userId: 'user_a' })
+    );
+    expect(active.conversations.map((c) => c.title)).toEqual(['older']);
+    const archived = await readJson<{ conversations: ConversationDto[] }>(
+      await call('/api/conversations?archived=true', { userId: 'user_a' })
+    );
+    expect(archived.conversations.map((c) => c.title)).toEqual(['newer']);
+
+    expect(
+      (await call(`/api/conversations/${newer}`, { method: 'PATCH', userId: 'user_a', json: {} }))
+        .status
+    ).toBe(400);
+  });
+
   it('deletes a conversation together with its messages', async () => {
     const id = await seedConversation('user_a');
     await seedMessages(id, 4);
