@@ -1,20 +1,42 @@
 {
   "name": "flare",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
+  "description": "Flare: a voice-first AI companion with an expressive 3D character, running on Cloudflare's edge.",
+  "engines": {
+    "node": ">=22"
+  },
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "scripts": {
     "dev": "npm run dev --workspaces --if-present",
+    "dev:api": "npm run dev --workspace=@flare/api",
+    "dev:web": "npm run dev --workspace=@flare/web",
     "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test": "npm run test --workspaces --if-present",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run build",
+    "db:migrate:local": "npm run migrate:local --workspace=@flare/db",
+    "db:migrate:remote": "npm run migrate:remote --workspace=@flare/db",
     "clean": "npm run clean --workspaces --if-present"
   },
   "devDependencies": {
-    "wrangler": "^4.135.0"
+    "prettier": "^3.9.9",
+    "prettier-plugin-tailwindcss": "^0.7.1",
+    "typescript": "^5.9.3",
+    "wrangler": "^4.139.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true,
+    "workerd@1.20260923.1": true,
+    "@clerk/shared@3.48.0": true,
+    "@clerk/shared@4.36.0": true,
+    "unrs-resolver@1.12.2": true
   }
 }

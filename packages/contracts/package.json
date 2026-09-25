@@ -1,9 +1,9 @@
 {
-  "name": "@flare/db",
+  "name": "@flare/contracts",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Typed repository layer over Cloudflare D1 plus the schema migrations.",
+  "description": "Shared API contract: request/response types and validation schemas used by both the Worker and the web client.",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
@@ -16,14 +16,13 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit",
-    "migrate:local": "wrangler d1 migrations apply flare-db --local",
-    "migrate:remote": "wrangler d1 migrations apply flare-db --remote"
+    "test": "vitest run"
   },
   "dependencies": {
-    "@flare/contracts": "*"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20250224.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11"
   }
 }

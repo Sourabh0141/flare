@@ -1,24 +1,36 @@
 {
   "name": "@flare/api",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
+  "description": "Flare API: a Hono application on Cloudflare Workers that orchestrates speech-to-text, the LLM, and text-to-speech.",
   "main": "src/index.ts",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "typecheck": "tsc --noEmit",
-    "build": "tsc --noEmit",
-    "test": "vitest run"
+    "typecheck": "wrangler types && tsc --noEmit",
+    "build": "wrangler types && tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "types": "wrangler types"
   },
   "dependencies": {
-    "@clerk/backend": "^3.18.1",
+    "@clerk/backend": "^3.20.1",
+    "@flare/contracts": "*",
     "@flare/db": "*",
-    "hono": "^4.13.8"
+    "@hono/zod-validator": "^0.9.1",
+    "hono": "^4.13.9",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.2.6",
     "@cloudflare/workers-types": "^4.20250224.0",
-    "typescript": "^5.8.2",
-    "vitest": "^3.0.8"
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.70.1",
+    "vitest": "^4.1.11",
+    "wrangler": "^4.139.0"
   }
 }

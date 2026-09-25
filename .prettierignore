@@ -1,0 +1,12 @@
+node_modules
+.next
+out
+dist
+.wrangler
+.terraform
+*.tfstate*
+package-lock.json
+public/models
+.agents
+*.glb
+*.wav
