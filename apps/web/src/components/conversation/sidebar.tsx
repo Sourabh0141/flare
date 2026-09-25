@@ -1,9 +1,10 @@
 'use client';
 
 import { UserButton, useUser } from '@clerk/clerk-react';
-import { Plus, Search, Settings, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, Search, Settings, ShieldCheck, X } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import { useAdminStatus } from '@/hooks/use-admin-status';
 import { useConversations } from '@/hooks/use-conversations';
 import { cn } from '@/lib/utils';
 import { useConversationStore } from '@/stores/conversation-store';
@@ -23,31 +24,47 @@ export interface SidebarProps {
 
 export function Sidebar({ open, onClose, onInterrupt }: SidebarProps) {
   const { user } = useUser();
+  const isAdmin = useAdminStatus();
   const {
     loadList,
     loadMore,
+    loadArchived,
     open: openConversation,
     startNew,
     rename,
+    setPinned,
+    setArchived,
     remove,
   } = useConversations();
   const conversations = useConversationStore((s) => s.conversations);
+  const archived = useConversationStore((s) => s.archivedConversations);
+  const archivedStatus = useConversationStore((s) => s.archivedStatus);
   const activeId = useConversationStore((s) => s.activeId);
   const listStatus = useConversationStore((s) => s.listStatus);
   const listError = useConversationStore((s) => s.listError);
   const nextCursor = useConversationStore((s) => s.nextCursor);
   const [deleting, setDeleting] = useState<{ id: string; title: string } | null>(null);
   const [query, setQuery] = useState('');
+  const [showArchived, setShowArchived] = useState(false);
 
   useEffect(() => {
     void loadList();
   }, [loadList]);
 
-  const visible = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return conversations;
-    return conversations.filter((c) => c.title.toLowerCase().includes(needle));
-  }, [conversations, query]);
+  useEffect(() => {
+    if (showArchived && archivedStatus === 'idle') void loadArchived();
+  }, [showArchived, archivedStatus, loadArchived]);
+
+  const needle = query.trim().toLowerCase();
+  const visible = useMemo(
+    () =>
+      needle ? conversations.filter((c) => c.title.toLowerCase().includes(needle)) : conversations,
+    [conversations, needle]
+  );
+  const visibleArchived = useMemo(
+    () => (needle ? archived.filter((c) => c.title.toLowerCase().includes(needle)) : archived),
+    [archived, needle]
+  );
 
   const select = (id: string) => {
     onInterrupt();
@@ -60,6 +77,20 @@ export function Sidebar({ open, onClose, onInterrupt }: SidebarProps) {
     startNew();
     onClose();
   };
+
+  const row = (conversation: (typeof conversations)[number]) => (
+    <li key={conversation.id}>
+      <ConversationRow
+        conversation={conversation}
+        active={conversation.id === activeId}
+        onSelect={() => select(conversation.id)}
+        onRename={(title) => rename(conversation.id, title)}
+        onPin={(pinned) => setPinned(conversation.id, pinned)}
+        onArchive={(value) => setArchived(conversation.id, value)}
+        onDelete={() => setDeleting({ id: conversation.id, title: conversation.title })}
+      />
+    </li>
+  );
 
   return (
     <>
@@ -94,7 +125,7 @@ export function Sidebar({ open, onClose, onInterrupt }: SidebarProps) {
             <Plus className="size-4" />
             New conversation
           </Button>
-          {conversations.length > 4 ? (
+          {conversations.length + archived.length > 4 ? (
             <label className="relative block">
               <Search
                 className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-smoke"
@@ -139,21 +170,9 @@ export function Sidebar({ open, onClose, onInterrupt }: SidebarProps) {
           ) : visible.length === 0 ? (
             <p className="px-2 py-6 text-sm text-smoke">No conversation matches that.</p>
           ) : (
-            <ul className="flex flex-col gap-0.5">
-              {visible.map((conversation) => (
-                <li key={conversation.id}>
-                  <ConversationRow
-                    conversation={conversation}
-                    active={conversation.id === activeId}
-                    onSelect={() => select(conversation.id)}
-                    onRename={(title) => rename(conversation.id, title)}
-                    onDelete={() => setDeleting({ id: conversation.id, title: conversation.title })}
-                  />
-                </li>
-              ))}
-            </ul>
+            <ul className="flex flex-col gap-0.5">{visible.map(row)}</ul>
           )}
-          {nextCursor && !query ? (
+          {nextCursor && !needle ? (
             <div className="px-2 py-2">
               <Button
                 variant="ghost"
@@ -165,6 +184,37 @@ export function Sidebar({ open, onClose, onInterrupt }: SidebarProps) {
               </Button>
             </div>
           ) : null}
+
+          <div className="mt-2 border-t border-ash/60 pt-2">
+            <button
+              type="button"
+              onClick={() => setShowArchived((v) => !v)}
+              aria-expanded={showArchived}
+              className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-smoke hover:text-linen-dim"
+            >
+              {showArchived ? (
+                <ChevronDown className="size-3.5" />
+              ) : (
+                <ChevronRight className="size-3.5" />
+              )}
+              Archived{archived.length > 0 ? ` (${archived.length})` : ''}
+            </button>
+            {showArchived ? (
+              archivedStatus === 'loading' ? (
+                <div className="flex items-center gap-2 px-2 py-3 text-sm text-smoke">
+                  <Spinner className="size-4" /> Loading
+                </div>
+              ) : archivedStatus === 'error' ? (
+                <p className="px-2 py-3 text-sm text-rust">
+                  Couldn&apos;t load archived conversations.
+                </p>
+              ) : visibleArchived.length === 0 ? (
+                <p className="px-2 py-3 text-sm text-smoke">Nothing archived.</p>
+              ) : (
+                <ul className="flex flex-col gap-0.5">{visibleArchived.map(row)}</ul>
+              )
+            ) : null}
+          </div>
         </nav>
 
         <div className="flex items-center gap-3 border-t border-ash/70 px-4 py-3">
@@ -175,6 +225,16 @@ export function Sidebar({ open, onClose, onInterrupt }: SidebarProps) {
             </p>
             <p className="truncate text-xs text-smoke">{user?.primaryEmailAddress?.emailAddress}</p>
           </div>
+          {isAdmin ? (
+            <Link
+              href="/admin/"
+              aria-label="Admin"
+              title="Admin"
+              className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-linen-dim transition-colors hover:bg-soot-raised hover:text-linen"
+            >
+              <ShieldCheck className="size-4" />
+            </Link>
+          ) : null}
           <Link
             href="/settings/"
             aria-label="Settings"

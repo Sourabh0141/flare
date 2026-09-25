@@ -9,6 +9,8 @@ interface Handlers {
   onInterrupt: () => void;
   /** Toggle hands-free mute with M. */
   onToggleMute?: () => void;
+  /** Open the shortcuts overlay with ?. */
+  onHelp?: () => void;
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -20,12 +22,13 @@ function isTypingTarget(target: EventTarget | null): boolean {
   );
 }
 
-/** Hold Space to talk, Escape to interrupt, M to mute in hands-free. Ignored while typing. */
+/** Hold Space to talk, Escape to interrupt, M to mute in hands-free, ? for help. */
 export function usePushToTalkKeys({
   onPress,
   onRelease,
   onInterrupt,
   onToggleMute,
+  onHelp,
 }: Handlers): void {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -41,6 +44,9 @@ export function usePushToTalkKeys({
       } else if (event.code === 'KeyM' && handsFree !== 'off' && onToggleMute) {
         event.preventDefault();
         onToggleMute();
+      } else if (event.key === '?' && onHelp) {
+        event.preventDefault();
+        onHelp();
       }
     };
     const onKeyUp = (event: KeyboardEvent) => {
@@ -57,5 +63,5 @@ export function usePushToTalkKeys({
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [onPress, onRelease, onInterrupt, onToggleMute]);
+  }, [onPress, onRelease, onInterrupt, onToggleMute, onHelp]);
 }

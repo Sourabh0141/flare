@@ -1,6 +1,6 @@
 'use client';
 
-import { MessageSquareText, PanelLeft } from 'lucide-react';
+import { Keyboard, MessageSquareText, PanelLeft } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import { usePushToTalkKeys } from '@/hooks/use-push-to-talk-keys';
@@ -18,6 +18,7 @@ import { IconButton } from '../ui/icon-button';
 import { HandsFreeToggle } from './hands-free-toggle';
 import { NoticeBanner } from './notice-banner';
 import { PushToTalk } from './push-to-talk';
+import { ShortcutsDialog } from './shortcuts-dialog';
 import { StatusPill } from './status-pill';
 import { TranscriptPanel } from './transcript-panel';
 import { WelcomeTip } from './welcome-tip';
@@ -28,6 +29,7 @@ const getVisemes = () => getVoicePlayer().getVisemes();
 export function AssistantShell() {
   const isWide = useMediaQuery('(min-width: 1024px)');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   // Until the user chooses, the transcript follows the viewport: open on wide screens.
   const [transcriptChoice, setTranscriptChoice] = useState<boolean | null>(null);
   const transcriptOpen = transcriptChoice ?? isWide;
@@ -50,11 +52,13 @@ export function AssistantShell() {
 
   const onPress = useCallback(() => void startListening(), [startListening]);
   const onRelease = useCallback(() => void stopAndSend(), [stopAndSend]);
+  const onHelp = useCallback(() => setShortcutsOpen(true), []);
   usePushToTalkKeys({
     onPress,
     onRelease,
     onInterrupt: interrupt,
     onToggleMute: toggleHandsFreeMute,
+    onHelp,
   });
 
   const enableHandsFree = useCallback(() => {
@@ -89,6 +93,13 @@ export function AssistantShell() {
           <div className="pointer-events-auto flex items-center gap-2">
             <StatusPill className="hidden sm:inline-flex" />
             <IconButton
+              label="Keyboard shortcuts"
+              onClick={() => setShortcutsOpen(true)}
+              className="hidden sm:inline-flex"
+            >
+              <Keyboard className="size-5" />
+            </IconButton>
+            <IconButton
               label={transcriptOpen ? 'Hide transcript' : 'Show transcript'}
               aria-pressed={transcriptOpen}
               onClick={() => setTranscriptChoice(!transcriptOpen)}
@@ -100,7 +111,12 @@ export function AssistantShell() {
         </header>
 
         <div className="relative flex-1">
-          <AvatarCanvas fullAnimations getVisemes={getVisemes} fallback={<AvatarPlaceholder />} />
+          <AvatarCanvas
+            fullAnimations
+            pointerInfluence={0.35}
+            getVisemes={getVisemes}
+            fallback={<AvatarPlaceholder />}
+          />
         </div>
 
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-4 bg-gradient-to-t from-ink via-ink/70 to-transparent px-4 pt-16 pb-6">
@@ -140,6 +156,8 @@ export function AssistantShell() {
           onReplay={(id) => void replay(id)}
         />
       </div>
+
+      <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </div>
   );
 }

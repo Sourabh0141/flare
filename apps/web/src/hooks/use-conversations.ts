@@ -37,6 +37,17 @@ export function useConversations() {
     }
   }, [api, store]);
 
+  const loadArchived = useCallback(async () => {
+    const { setArchived, setArchivedStatus } = store.getState();
+    setArchivedStatus('loading');
+    try {
+      const page = await api.listConversations({ limit: 100, archived: true });
+      setArchived(page.conversations);
+    } catch {
+      setArchivedStatus('error');
+    }
+  }, [api, store]);
+
   const open = useCallback(
     async (id: string) => {
       const state = store.getState();
@@ -64,10 +75,13 @@ export function useConversations() {
     store.getState().openConversation(null);
   }, [store]);
 
-  const rename = useCallback(
-    async (id: string, title: string): Promise<string | null> => {
+  const update = useCallback(
+    async (
+      id: string,
+      changes: { title?: string; pinned?: boolean; archived?: boolean }
+    ): Promise<string | null> => {
       try {
-        const updated = await api.renameConversation(id, title);
+        const updated = await api.updateConversation(id, changes);
         store.getState().upsertConversation(updated);
         return null;
       } catch (error) {
@@ -75,6 +89,13 @@ export function useConversations() {
       }
     },
     [api, store]
+  );
+
+  const rename = useCallback((id: string, title: string) => update(id, { title }), [update]);
+  const setPinned = useCallback((id: string, pinned: boolean) => update(id, { pinned }), [update]);
+  const setArchived = useCallback(
+    (id: string, archived: boolean) => update(id, { archived }),
+    [update]
   );
 
   const remove = useCallback(
@@ -92,5 +113,15 @@ export function useConversations() {
 
   useEffect(() => () => openRequest.current?.abort(), []);
 
-  return { loadList, loadMore, open, startNew, rename, remove };
+  return {
+    loadList,
+    loadMore,
+    loadArchived,
+    open,
+    startNew,
+    rename,
+    setPinned,
+    setArchived,
+    remove,
+  };
 }
