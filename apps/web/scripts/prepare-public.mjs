@@ -92,7 +92,7 @@ function buildHeaders(env) {
     // Next.js static export needs inline bootstrap scripts; the ONNX runtime needs wasm.
     `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' ${clerk.join(' ')} ${turnstile}`,
     "worker-src 'self' blob:",
-    `connect-src 'self' ${api} ${clerk.join(' ')} ${turnstile}${assets ? ` ${assets}` : ''}`,
+    `connect-src 'self' blob: ${api} ${clerk.join(' ')} ${turnstile}${assets ? ` ${assets}` : ''}`,
     "img-src 'self' data: blob: https://img.clerk.com",
     "media-src 'self' blob: data:",
     "style-src 'self' 'unsafe-inline'",
