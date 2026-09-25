@@ -65,11 +65,13 @@ jobs:
 
       # Secrets live only in GitHub and are pushed to the Worker here. CLERK_JWT_KEY is
       # optional but recommended: it lets the Worker verify sessions without a network call.
+      # TURNSTILE_SECRET_KEY is optional: it enables bot verification on the invite form.
       - name: Configure Worker secrets
         env:
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
           CLERK_JWT_KEY: ${{ secrets.CLERK_JWT_KEY }}
           DEEPINFRA_API_KEY: ${{ secrets.DEEPINFRA_API_KEY }}
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
         run: |
           set -euo pipefail
           put_secret() {
@@ -83,6 +85,7 @@ jobs:
           put_secret CLERK_SECRET_KEY "$CLERK_SECRET_KEY"
           put_secret CLERK_JWT_KEY "$CLERK_JWT_KEY"
           put_secret DEEPINFRA_API_KEY "$DEEPINFRA_API_KEY"
+          put_secret TURNSTILE_SECRET_KEY "$TURNSTILE_SECRET_KEY"
 
       - name: Deploy API Worker
         run: npx wrangler deploy --cwd apps/api
@@ -92,6 +95,8 @@ jobs:
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
           NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
           NEXT_PUBLIC_ASSETS_URL: ${{ secrets.NEXT_PUBLIC_ASSETS_URL }}
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ secrets.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
+          NEXT_PUBLIC_REPO_URL: ${{ secrets.NEXT_PUBLIC_REPO_URL }}
         run: |
           if [ -z "$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" ] || [ -z "$NEXT_PUBLIC_API_URL" ]; then
             echo "::error::NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY and NEXT_PUBLIC_API_URL must be set"
