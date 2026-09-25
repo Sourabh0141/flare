@@ -7,6 +7,7 @@ import { usePushToTalkKeys } from '@/hooks/use-push-to-talk-keys';
 import { useStageGlow } from '@/hooks/use-stage-glow';
 import { useVoiceTurn } from '@/hooks/use-voice-turn';
 import { getVoicePlayer } from '@/lib/audio/player';
+import { readPrefs, writePrefs } from '@/lib/prefs';
 import { cn } from '@/lib/utils';
 import { useAssistantStore } from '@/stores/assistant-store';
 import { useConversationStore } from '@/stores/conversation-store';
@@ -14,10 +15,12 @@ import { AvatarCanvas } from '../avatar/avatar-canvas';
 import { AvatarPlaceholder } from '../avatar/avatar-placeholder';
 import { Sidebar } from '../conversation/sidebar';
 import { IconButton } from '../ui/icon-button';
+import { HandsFreeToggle } from './hands-free-toggle';
 import { NoticeBanner } from './notice-banner';
 import { PushToTalk } from './push-to-talk';
 import { StatusPill } from './status-pill';
 import { TranscriptPanel } from './transcript-panel';
+import { WelcomeTip } from './welcome-tip';
 
 const getVisemes = () => getVoicePlayer().getVisemes();
 
@@ -33,13 +36,35 @@ export function AssistantShell() {
     (s) => s.conversations.find((c) => c.id === s.activeId)?.title ?? null
   );
   const reset = useAssistantStore((s) => s.reset);
-  const { startListening, stopAndSend, interrupt, replay } = useVoiceTurn();
+  const {
+    startListening,
+    stopAndSend,
+    interrupt,
+    replay,
+    startHandsFree,
+    stopHandsFree,
+    toggleHandsFreeMute,
+  } = useVoiceTurn();
 
   useStageGlow();
 
   const onPress = useCallback(() => void startListening(), [startListening]);
   const onRelease = useCallback(() => void stopAndSend(), [stopAndSend]);
-  usePushToTalkKeys({ onPress, onRelease, onInterrupt: interrupt });
+  usePushToTalkKeys({
+    onPress,
+    onRelease,
+    onInterrupt: interrupt,
+    onToggleMute: toggleHandsFreeMute,
+  });
+
+  const enableHandsFree = useCallback(() => {
+    writePrefs({ handsFreeByDefault: true });
+    void startHandsFree();
+  }, [startHandsFree]);
+  const disableHandsFree = useCallback(() => {
+    writePrefs({ handsFreeByDefault: false });
+    stopHandsFree();
+  }, [stopHandsFree]);
 
   useEffect(() => () => reset(), [reset]);
 
@@ -62,7 +87,7 @@ export function AssistantShell() {
             </h1>
           </div>
           <div className="pointer-events-auto flex items-center gap-2">
-            <StatusPill />
+            <StatusPill className="hidden sm:inline-flex" />
             <IconButton
               label={transcriptOpen ? 'Hide transcript' : 'Show transcript'}
               aria-pressed={transcriptOpen}
@@ -83,9 +108,24 @@ export function AssistantShell() {
             <NoticeBanner />
           </div>
           <div className="pointer-events-auto">
-            <PushToTalk onPress={onPress} onRelease={onRelease} onInterrupt={interrupt} />
+            <PushToTalk
+              onPress={onPress}
+              onRelease={onRelease}
+              onInterrupt={interrupt}
+              onToggleMute={toggleHandsFreeMute}
+            />
+          </div>
+          <div className="pointer-events-auto">
+            <HandsFreeToggle onEnable={enableHandsFree} onDisable={disableHandsFree} />
           </div>
         </div>
+
+        <WelcomeTip
+          onDismiss={(withHandsFree) => {
+            if (withHandsFree) enableHandsFree();
+          }}
+          initialPrefs={readPrefs}
+        />
       </main>
 
       <div

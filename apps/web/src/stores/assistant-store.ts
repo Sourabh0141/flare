@@ -4,6 +4,9 @@ import { create } from 'zustand';
 /** What the character is doing right now. Drives lighting, posture and the controls. */
 export type AssistantState = 'idle' | 'listening' | 'thinking' | 'speaking';
 
+/** Hands-free listening: off, actively waiting for speech, or muted by the user. */
+export type HandsFreeMode = 'off' | 'listening' | 'muted';
+
 export interface AssistantNotice {
   tone: 'info' | 'error';
   message: string;
@@ -20,6 +23,9 @@ export interface AssistantStore {
   /** Id of the assistant message currently being spoken, if any. */
   speakingMessageId: string | null;
   notice: AssistantNotice | null;
+  handsFree: HandsFreeMode;
+  /** Turns left today as last reported by the API; null until the first turn. */
+  turnsRemainingToday: number | null;
 
   setState: (state: AssistantState) => void;
   setInputLevel: (level: number) => void;
@@ -27,6 +33,8 @@ export interface AssistantStore {
   relax: () => void;
   setSpeakingMessage: (id: string | null) => void;
   notify: (notice: AssistantNotice | null) => void;
+  setHandsFree: (mode: HandsFreeMode) => void;
+  setTurnsRemaining: (turns: number | null) => void;
   reset: () => void;
 }
 
@@ -38,6 +46,8 @@ const initial = {
   inputLevel: 0,
   speakingMessageId: null,
   notice: null,
+  handsFree: 'off' as HandsFreeMode,
+  turnsRemainingToday: null,
 };
 
 export const useAssistantStore = create<AssistantStore>((set) => ({
@@ -49,6 +59,8 @@ export const useAssistantStore = create<AssistantStore>((set) => ({
   relax: () => set({ emotion: DEFAULT_EMOTION, gesture: DEFAULT_GESTURE }),
   setSpeakingMessage: (speakingMessageId) => set({ speakingMessageId }),
   notify: (notice) => set({ notice }),
+  setHandsFree: (handsFree) => set({ handsFree }),
+  setTurnsRemaining: (turnsRemainingToday) => set({ turnsRemainingToday }),
   reset: () => set({ ...initial }),
 }));
 
