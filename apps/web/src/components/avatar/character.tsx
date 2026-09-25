@@ -12,12 +12,17 @@ import {
   clamp,
   createBlinkState,
   createGazeState,
+  createGlanceState,
   createHeadGesture,
+  createOnsetState,
   damp,
   idleSway,
   stepBlink,
   stepGaze,
+  stepGlance,
   stepHeadGesture,
+  stepOnset,
+  weightShift,
   type HeadGesture,
 } from '@/lib/character/behaviors';
 import {
@@ -25,6 +30,7 @@ import {
   clipForGesture,
   nextTalkingClip,
   reactionForEmotion,
+  scaleReaction,
   type ReactionClip,
 } from '@/lib/character/clips';
 import { EXPRESSIONS, EXPRESSION_SHAPES, STATE_OVERLAYS } from '@/lib/character/expressions';
@@ -34,8 +40,8 @@ import { useAssistantStore, type AssistantStore } from '@/stores/assistant-store
 export interface CharacterProps {
   /** Supplies lip-sync weights each frame; omit for a silent character. */
   getVisemes?: () => VisemeWeights;
-  /** Eyes follow the pointer (landing page) instead of the conversation state. */
-  followPointer?: boolean;
+  /** How much the eyes follow the pointer: 1 on the landing page, a little in the app. */
+  pointerInfluence?: number;
   /** Load the full clip set (talking, laughing, ...) after the idle clip is ready. */
   fullAnimations?: boolean;
   position?: [number, number, number];
@@ -68,14 +74,31 @@ interface ActiveReaction {
   fadeSec: number;
 }
 
+type Snapshot = Pick<
+  AssistantStore,
+  'state' | 'emotion' | 'gesture' | 'intensity' | 'gestureSeq' | 'inputLevel'
+>;
+
+function pick(s: AssistantStore): Snapshot {
+  return {
+    state: s.state,
+    emotion: s.emotion,
+    gesture: s.gesture,
+    intensity: s.intensity,
+    gestureSeq: s.gestureSeq,
+    inputLevel: s.inputLevel,
+  };
+}
+
 /**
  * The 3D character. Animation clips give the body its base motion; everything on top
- * (gaze, blink, expression, lip-sync, head gestures, breathing) is procedural and reads
- * the assistant store directly each frame, so nothing re-renders at 60 fps.
+ * (gaze, glances, blink, expression, lip-sync, head gestures, breathing, weight shifts)
+ * is procedural and reads the assistant store directly each frame, so nothing re-renders
+ * at 60 fps.
  */
 export function Character({
   getVisemes,
-  followPointer = false,
+  pointerInfluence = 0,
   fullAnimations = false,
   position = [0, -1.45, 0],
 }: CharacterProps) {
@@ -182,9 +205,7 @@ export function Character({
   }
 
   // Store snapshot kept in a ref; subscriptions never trigger React renders here.
-  const snapshot = useRef<Pick<AssistantStore, 'state' | 'emotion' | 'gesture' | 'gestureSeq'>>(
-    pick(useAssistantStore.getState())
-  );
+  const snapshot = useRef<Snapshot>(pick(useAssistantStore.getState()));
   const seenGestureSeq = useRef(snapshot.current.gestureSeq);
   const seenState = useRef(snapshot.current.state);
   const headGesture = useRef<HeadGesture | null>(null);
@@ -199,13 +220,17 @@ export function Character({
 
   const blink = useRef(createBlinkState());
   const gaze = useRef(createGazeState());
+  const glance = useRef(createGlanceState());
+  const onset = useRef(createOnsetState());
   const expressionWeights = useRef<Record<string, number>>({});
+  const listenLift = useRef(0);
 
   useFrame(({ clock, pointer }, rawDelta) => {
     const delta = Math.min(rawDelta, 0.05);
     const now = clock.elapsedTime;
-    const { state, emotion, gesture, gestureSeq } = snapshot.current;
+    const { state, emotion, gesture, intensity, gestureSeq, inputLevel } = snapshot.current;
     const speaking = state === 'speaking';
+    const busy = speaking || state === 'thinking';
 
     // 1. Base clip follows the state; talking variants rotate each time speech starts.
     if (state !== seenState.current) {
@@ -217,18 +242,36 @@ export function Character({
       seenState.current = state;
     }
 
-    // 2. Gestures and strong emotions fire once per request.
+    // 2. Gestures and strong emotions fire once per request, scaled by intensity.
     if (gestureSeq !== seenGestureSeq.current) {
       seenGestureSeq.current = gestureSeq;
       if (gesture === 'nod' || gesture === 'shake') {
-        headGesture.current = createHeadGesture(gesture);
+        headGesture.current = createHeadGesture(gesture, 0.6 + 0.4 * intensity);
       }
-      const spec = clipForGesture(gesture) ?? reactionForEmotion(emotion);
+      const explicit = clipForGesture(gesture);
+      const spec = explicit
+        ? scaleReaction(explicit, intensity, true)
+        : (() => {
+            const reactionClip = reactionForEmotion(emotion);
+            return reactionClip ? scaleReaction(reactionClip, intensity, false) : null;
+          })();
       if (spec) playReaction(spec, now);
     }
     if (reaction.current && now >= reaction.current.endsAt) {
       reaction.current.action.fadeOut(reaction.current.fadeSec);
       reaction.current = null;
+    }
+
+    // 3. Listening acknowledgements: a small nod when the user starts a thought, and a
+    //    brow lift that follows how loudly they are speaking.
+    if (state === 'listening') {
+      if (stepOnset(onset.current, inputLevel, delta) && !headGesture.current) {
+        headGesture.current = createHeadGesture('nod', 0.35);
+      }
+      listenLift.current = damp(listenLift.current, clamp(inputLevel, 0, 1) * 0.3, 6, delta);
+    } else {
+      listenLift.current = damp(listenLift.current, 0, 4, delta);
+      onset.current.wasAbove = false;
     }
 
     mixer.update(delta);
@@ -240,16 +283,23 @@ export function Character({
       if (rest) bone.rotation.copy(rest);
     }
 
-    // 3. Gaze target: pointer on the landing page, otherwise conversational.
-    const target = followPointer
-      ? { x: clamp(-pointer.x, -1, 1) * 0.8, y: clamp(pointer.y, -1, 1) * 0.5 }
-      : state === 'thinking'
-        ? { x: 0.45, y: 0.5 }
-        : { x: 0, y: 0.05 };
+    // 4. Gaze: conversational target, pointer blended in, and the occasional glance away.
+    const pointerTarget = {
+      x: clamp(-pointer.x, -1, 1) * 0.8,
+      y: clamp(pointer.y, -1, 1) * 0.5,
+    };
+    const conversational = state === 'thinking' ? { x: 0.45, y: 0.5 } : { x: 0, y: 0.05 };
+    const influence = state === 'thinking' ? 0 : pointerInfluence;
+    let target = {
+      x: conversational.x * (1 - influence) + pointerTarget.x * influence,
+      y: conversational.y * (1 - influence) + pointerTarget.y * influence,
+    };
+    const glanceTarget = busy ? null : stepGlance(glance.current, delta);
+    if (glanceTarget) target = glanceTarget;
     const wander = state === 'listening' ? 0.05 : state === 'thinking' ? 0.25 : 0.15;
     const look = stepGaze(gaze.current, target, delta, {
       wander,
-      speed: state === 'thinking' ? 4 : 7,
+      speed: state === 'thinking' ? 4 : glanceTarget ? 5 : 7,
     });
 
     for (const eye of [bones.leftEye, bones.rightEye]) {
@@ -258,11 +308,11 @@ export function Character({
       eye.rotation.x += -look.y * 0.25;
     }
 
-    // 4. Head: follows the gaze a little, leans in while listening, plus gestures.
+    // 5. Head: follows the gaze a little, leans in while listening, plus gestures.
     if (bones.head) {
       const lean = state === 'listening' ? 0.06 : state === 'thinking' ? -0.03 : 0;
       let pitch = -look.y * 0.18 + lean;
-      let yaw = look.x * 0.3;
+      let yaw = look.x * (glanceTarget ? 0.42 : 0.3);
       if (headGesture.current) {
         const offset = stepHeadGesture(headGesture.current, delta);
         if (offset) {
@@ -277,9 +327,11 @@ export function Character({
       bones.head.rotation.z += look.x * -0.05;
     }
 
-    // 5. Blend shapes: expression + state overlay + blink + gaze + lip-sync.
+    // 6. Blend shapes: expression (scaled by intensity) + state overlay + listening lift +
+    //    blink + gaze + lip-sync.
     const blinkWeight = stepBlink(blink.current, delta);
     const preset = EXPRESSIONS[emotion];
+    const strength = emotion === 'neutral' ? 1 : 0.35 + 0.65 * intensity;
     const overlay =
       state === 'listening'
         ? STATE_OVERLAYS.listening
@@ -290,7 +342,10 @@ export function Character({
     const smoothing = 1 - Math.exp(-14 * delta);
 
     for (const name of ALL_SHAPES) {
-      let goal = (preset[name] ?? 0) + (overlay?.[name] ?? 0);
+      let goal = (preset[name] ?? 0) * strength + (overlay?.[name] ?? 0);
+      if (name === 'browInnerUp' || name === 'browOuterUpLeft' || name === 'browOuterUpRight') {
+        goal += listenLift.current;
+      }
       if (name === 'eyeBlinkLeft' || name === 'eyeBlinkRight') goal = blinkWeight;
       const current = expressionWeights.current[name] ?? 0;
       expressionWeights.current[name] = current + (goal - current) * smoothing;
@@ -322,8 +377,6 @@ export function Character({
         if (name in eyeLook) value = Math.max(value, eyeLook[name] ?? 0);
         if (visemes && name in visemes) {
           value = visemes[name as keyof VisemeWeights];
-          // Keep a hint of the smile while talking.
-          if (name === 'jawOpen') value = Math.min(1, value);
         }
         influences[index] = damp(influences[index] ?? 0, clamp(value, 0, 1), 22, delta);
       }
@@ -336,13 +389,25 @@ export function Character({
       }
     }
 
-    // 6. Breathing and idle sway on the root.
+    // 7. Breathing, idle sway and slow weight shifts on the root.
     if (groupRef.current) {
       const sway = idleSway(now);
+      const shift = busy ? { offsetX: 0, lean: 0 } : weightShift(now);
       groupRef.current.position.y = position[1] + breathing(now);
+      groupRef.current.position.x = damp(
+        groupRef.current.position.x,
+        position[0] + shift.offsetX,
+        1.5,
+        delta
+      );
       groupRef.current.rotation.x = damp(groupRef.current.rotation.x, sway.x, 2, delta);
       groupRef.current.rotation.y = damp(groupRef.current.rotation.y, sway.y, 2, delta);
-      groupRef.current.rotation.z = damp(groupRef.current.rotation.z, sway.z, 2, delta);
+      groupRef.current.rotation.z = damp(
+        groupRef.current.rotation.z,
+        sway.z + shift.lean,
+        2,
+        delta
+      );
     }
   });
 
@@ -351,10 +416,6 @@ export function Character({
       <primitive object={scene} />
     </group>
   );
-}
-
-function pick(s: AssistantStore) {
-  return { state: s.state, emotion: s.emotion, gesture: s.gesture, gestureSeq: s.gestureSeq };
 }
 
 useGLTF.preload(MODEL_URLS.avatar);

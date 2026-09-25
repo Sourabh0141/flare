@@ -2,11 +2,16 @@ import { describe, expect, it } from 'vitest';
 import {
   createBlinkState,
   createGazeState,
+  createGlanceState,
   createHeadGesture,
+  createOnsetState,
   damp,
   stepBlink,
   stepGaze,
+  stepGlance,
   stepHeadGesture,
+  stepOnset,
+  weightShift,
 } from './behaviors';
 
 describe('damp', () => {
@@ -57,6 +62,24 @@ describe('stepGaze', () => {
   });
 });
 
+describe('stepGlance', () => {
+  it('looks away for a moment after a while, then returns and reschedules', () => {
+    const random = () => 0.5;
+    const state = createGlanceState(random);
+    expect(stepGlance(state, 1, random)).toBeNull();
+    let target = null;
+    for (let i = 0; i < 20 && !target; i += 1) target = stepGlance(state, 0.5, random);
+    expect(target).not.toBeNull();
+    expect(Math.abs(target!.x)).toBeGreaterThan(0.4);
+    let cleared = false;
+    for (let i = 0; i < 10; i += 1) {
+      if (stepGlance(state, 0.3, random) === null) cleared = true;
+    }
+    expect(cleared).toBe(true);
+    expect(state.nextIn).toBeGreaterThan(5);
+  });
+});
+
 describe('stepHeadGesture', () => {
   it('nods on pitch only, finishes, and returns to zero at the ends', () => {
     const nod = createHeadGesture('nod');
@@ -73,9 +96,37 @@ describe('stepHeadGesture', () => {
     expect(sawMotion).toBe(true);
   });
 
-  it('shakes on yaw only', () => {
+  it('shakes on yaw only and scales with amplitude', () => {
     const shake = createHeadGesture('shake');
     const mid = stepHeadGesture(shake, shake.durationSec / 2 - 0.01);
     expect(mid?.pitch).toBe(0);
+    const small = createHeadGesture('nod', 0.4);
+    const full = createHeadGesture('nod', 1);
+    const a = stepHeadGesture(small, 0.11);
+    const b = stepHeadGesture(full, 0.11);
+    expect(Math.abs(a!.pitch)).toBeLessThan(Math.abs(b!.pitch));
+  });
+});
+
+describe('stepOnset', () => {
+  it('fires on a rising edge once per cooldown', () => {
+    const state = createOnsetState();
+    expect(stepOnset(state, 0.1, 0.016)).toBe(false);
+    expect(stepOnset(state, 0.6, 0.016)).toBe(true);
+    expect(stepOnset(state, 0.7, 0.016)).toBe(false); // still above
+    expect(stepOnset(state, 0.1, 0.016)).toBe(false);
+    expect(stepOnset(state, 0.6, 0.016)).toBe(false); // within cooldown
+    expect(stepOnset(state, 0.1, 3)).toBe(false);
+    expect(stepOnset(state, 0.6, 0.016)).toBe(true);
+  });
+});
+
+describe('weightShift', () => {
+  it('is small, smooth and lean opposes the offset', () => {
+    for (let t = 0; t < 60; t += 0.5) {
+      const { offsetX, lean } = weightShift(t);
+      expect(Math.abs(offsetX)).toBeLessThan(0.02);
+      expect(Math.sign(lean) === 0 || Math.sign(lean) === -Math.sign(offsetX)).toBe(true);
+    }
   });
 });

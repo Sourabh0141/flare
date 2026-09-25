@@ -90,6 +90,49 @@ export function stepGaze(
 }
 
 // -----------------------------------------------------------------------------
+// Glances: every so often the character looks away for a moment, then returns
+// -----------------------------------------------------------------------------
+
+export interface GlanceState {
+  nextIn: number;
+  remaining: number;
+  target: GazeTarget | null;
+}
+
+export function createGlanceState(random = Math.random): GlanceState {
+  return { nextIn: 5 + random() * 8, remaining: 0, target: null };
+}
+
+/**
+ * Returns a temporary gaze target while a glance is in progress, otherwise null. Glances
+ * only happen while the character is idle or listening; callers skip this when busy.
+ */
+export function stepGlance(
+  state: GlanceState,
+  delta: number,
+  random = Math.random
+): GazeTarget | null {
+  if (state.target) {
+    state.remaining -= delta;
+    if (state.remaining <= 0) {
+      state.target = null;
+      state.nextIn = 6 + random() * 9;
+    }
+    return state.target;
+  }
+  state.nextIn -= delta;
+  if (state.nextIn <= 0) {
+    state.target = {
+      x: (random() < 0.5 ? -1 : 1) * (0.45 + random() * 0.4),
+      y: (random() - 0.4) * 0.5,
+    };
+    state.remaining = 1 + random() * 1.2;
+    return state.target;
+  }
+  return null;
+}
+
+// -----------------------------------------------------------------------------
 // Procedural head gestures (nod / shake) as damped sinusoids
 // -----------------------------------------------------------------------------
 
@@ -97,10 +140,12 @@ export interface HeadGesture {
   kind: 'nod' | 'shake';
   elapsed: number;
   durationSec: number;
+  /** 1 is a full gesture; listening acknowledgements use a fraction. */
+  amplitude: number;
 }
 
-export function createHeadGesture(kind: 'nod' | 'shake'): HeadGesture {
-  return { kind, elapsed: 0, durationSec: kind === 'nod' ? 0.9 : 1.1 };
+export function createHeadGesture(kind: 'nod' | 'shake', amplitude = 1): HeadGesture {
+  return { kind, elapsed: 0, durationSec: kind === 'nod' ? 0.9 : 1.1, amplitude };
 }
 
 /** Returns head rotation offsets in radians {pitch, yaw}; null when finished. */
@@ -111,7 +156,7 @@ export function stepHeadGesture(
   gesture.elapsed += delta;
   if (gesture.elapsed >= gesture.durationSec) return null;
   const t = gesture.elapsed / gesture.durationSec;
-  const envelope = Math.sin(Math.PI * t); // ease in and out
+  const envelope = Math.sin(Math.PI * t) * gesture.amplitude; // ease in and out
   if (gesture.kind === 'nod') {
     return { pitch: Math.sin(t * Math.PI * 4) * 0.12 * envelope, yaw: 0 };
   }
@@ -119,7 +164,39 @@ export function stepHeadGesture(
 }
 
 // -----------------------------------------------------------------------------
-// Breathing and idle sway
+// Listening acknowledgements: react to the user's voice starting and rising
+// -----------------------------------------------------------------------------
+
+export interface OnsetState {
+  wasAbove: boolean;
+  cooldown: number;
+}
+
+export function createOnsetState(): OnsetState {
+  return { wasAbove: false, cooldown: 0 };
+}
+
+/**
+ * Fires when the input level crosses the threshold upwards, at most once per `cooldownSec`,
+ * so the character nods when you start a thought rather than on every syllable.
+ */
+export function stepOnset(
+  state: OnsetState,
+  level: number,
+  delta: number,
+  threshold = 0.35,
+  cooldownSec = 2.4
+): boolean {
+  state.cooldown = Math.max(0, state.cooldown - delta);
+  const above = level >= threshold;
+  const fired = above && !state.wasAbove && state.cooldown === 0;
+  state.wasAbove = above;
+  if (fired) state.cooldown = cooldownSec;
+  return fired;
+}
+
+// -----------------------------------------------------------------------------
+// Breathing, idle sway and weight shifts
 // -----------------------------------------------------------------------------
 
 export function breathing(time: number): number {
@@ -132,4 +209,13 @@ export function idleSway(time: number): { x: number; y: number; z: number } {
     y: Math.sin(time * 0.23) * 0.02,
     z: Math.sin(time * 0.31) * 0.008,
   };
+}
+
+/**
+ * Slow weight shift from one hip to the other: a lateral drift with a matching lean so the
+ * body reads as standing rather than floating. Period is long and irregular.
+ */
+export function weightShift(time: number): { offsetX: number; lean: number } {
+  const phase = Math.sin(time * 0.11) * 0.7 + Math.sin(time * 0.043 + 1.3) * 0.3;
+  return { offsetX: phase * 0.018, lean: -phase * 0.02 };
 }

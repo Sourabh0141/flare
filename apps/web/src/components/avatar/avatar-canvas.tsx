@@ -5,12 +5,14 @@ import { ContactShadows, PerspectiveCamera } from '@react-three/drei';
 import { Suspense, type ReactNode } from 'react';
 import type { VisemeWeights } from '@/lib/audio/visemes';
 import { cn } from '@/lib/utils';
+import { ErrorBoundary } from '../ui/error-boundary';
 import { Character } from './character';
 import { StageLights } from './stage-lights';
 
 export interface AvatarCanvasProps {
   getVisemes?: () => VisemeWeights;
-  followPointer?: boolean;
+  /** How much the eyes follow the pointer: 1 on the landing page, a little in the app. */
+  pointerInfluence?: number;
   fullAnimations?: boolean;
   /** Portrait framing for the landing hero, full-body for the assistant stage. */
   framing?: 'portrait' | 'stage';
@@ -20,7 +22,7 @@ export interface AvatarCanvasProps {
 
 export function AvatarCanvas({
   getVisemes,
-  followPointer = false,
+  pointerInfluence = 0,
   fullAnimations = false,
   framing = 'stage',
   fallback,
@@ -33,24 +35,32 @@ export function AvatarCanvas({
 
   return (
     <div className={cn('relative h-full w-full', className)}>
-      <Suspense fallback={fallback ?? null}>
-        <Canvas
-          shadows
-          dpr={[1, 1.75]}
-          gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
-          className="h-full w-full"
-          aria-hidden="true"
-        >
-          <PerspectiveCamera makeDefault position={camera.position} fov={camera.fov} />
-          <StageLights />
-          <Character
-            {...(getVisemes ? { getVisemes } : {})}
-            followPointer={followPointer}
-            fullAnimations={fullAnimations}
-          />
-          <ContactShadows position={[0, -1.45, 0]} opacity={0.55} scale={4} blur={2} far={2.5} />
-        </Canvas>
-      </Suspense>
+      <ErrorBoundary
+        fallback={
+          <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-smoke">
+            The 3D view could not start in this browser. Everything else still works.
+          </div>
+        }
+      >
+        <Suspense fallback={fallback ?? null}>
+          <Canvas
+            shadows
+            dpr={[1, 1.75]}
+            gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+            className="h-full w-full"
+            aria-hidden="true"
+          >
+            <PerspectiveCamera makeDefault position={camera.position} fov={camera.fov} />
+            <StageLights />
+            <Character
+              {...(getVisemes ? { getVisemes } : {})}
+              pointerInfluence={pointerInfluence}
+              fullAnimations={fullAnimations}
+            />
+            <ContactShadows position={[0, -1.45, 0]} opacity={0.55} scale={4} blur={2} far={2.5} />
+          </Canvas>
+        </Suspense>
+      </ErrorBoundary>
     </div>
   );
 }

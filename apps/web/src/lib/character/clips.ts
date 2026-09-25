@@ -46,6 +46,24 @@ export function reactionForEmotion(emotion: Emotion): ReactionClip | null {
   }
 }
 
+/**
+ * Scales a reaction by how strongly the emotion is felt: a mild annoyance is a brief,
+ * faint flicker; a strong one plays fuller and longer. Gestures asked for explicitly
+ * (laugh, dance) keep their full weight and only shorten a little when mild.
+ */
+export function scaleReaction(
+  clip: ReactionClip,
+  intensity: number,
+  explicit: boolean
+): ReactionClip {
+  const t = Math.min(1, Math.max(0, intensity));
+  return {
+    ...clip,
+    weight: explicit ? clip.weight : clip.weight * (0.45 + 0.55 * t),
+    durationSec: clip.durationSec * (explicit ? 0.85 + 0.15 * t : 0.6 + 0.6 * t),
+  };
+}
+
 /** Picks a talking variant, never repeating the previous one. */
 export function nextTalkingClip(previous: string | null): string {
   const options = CLIPS.talking.filter((clip) => clip !== previous);

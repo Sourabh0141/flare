@@ -2,12 +2,13 @@
 
 import { SignedIn, SignedOut } from '@clerk/clerk-react';
 import Link from 'next/link';
-import { AvatarCanvas } from '../avatar/avatar-canvas';
 import { AvatarPlaceholder } from '../avatar/avatar-placeholder';
+import { LazyAvatarCanvas } from '../avatar/lazy-avatar-canvas';
 
 /**
  * The hero is the character. It idles, breathes, blinks and follows the pointer with its
- * eyes, which says more about the product than any headline could.
+ * eyes, which says more about the product than any headline could. The 3D stack loads in
+ * its own chunk once the page is up.
  */
 export function Hero() {
   return (
@@ -20,7 +21,8 @@ export function Hero() {
           <p className="max-w-[34rem] text-lg leading-relaxed text-linen-dim">
             Flare is a voice companion with a face. There is no chat box to type into: you talk, and
             a 3D character listens, thinks, and talks back with a voice, an expression, and
-            sometimes a laugh.
+            sometimes a laugh. It answers in your language, and it starts speaking before it has
+            finished thinking.
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <SignedOut>
@@ -66,11 +68,13 @@ export function Hero() {
             className="absolute inset-x-8 top-8 h-3/4 rounded-full bg-ember/15 blur-3xl"
           />
           <div className="relative mx-auto aspect-[4/5] w-full max-w-md lg:max-w-none">
-            <AvatarCanvas
-              followPointer
+            <LazyAvatarCanvas
+              pointerInfluence={1}
               framing="portrait"
+              rootMargin="0px"
               fallback={<AvatarPlaceholder />}
-              className="[mask-image:linear-gradient(to_bottom,black_78%,transparent)]"
+              placeholder={<AvatarPlaceholder />}
+              className="h-full w-full [mask-image:linear-gradient(to_bottom,black_78%,transparent)]"
             />
           </div>
           <p className="mt-2 text-center text-xs text-smoke lg:text-right">
