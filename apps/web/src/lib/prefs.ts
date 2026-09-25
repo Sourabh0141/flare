@@ -10,9 +10,21 @@ export interface DevicePrefs {
   handsFreeByDefault: boolean;
   /** Set once the user has seen the first-run tip. */
   seenWelcome: boolean;
+  /** Let speech interrupt Flare while it talks (best with headphones). */
+  bargeIn: boolean;
+  /** Soft tones when listening starts and a turn is sent. */
+  soundCues: boolean;
+  /** Prefer the neural detector for hands-free; falls back to the energy gate if it fails. */
+  neuralVad: boolean;
 }
 
-const defaults: DevicePrefs = { handsFreeByDefault: false, seenWelcome: false };
+const defaults: DevicePrefs = {
+  handsFreeByDefault: false,
+  seenWelcome: false,
+  bargeIn: false,
+  soundCues: true,
+  neuralVad: true,
+};
 
 export function readPrefs(): DevicePrefs {
   try {
