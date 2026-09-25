@@ -1,4 +1,7 @@
-import { newId, nowSeconds } from '../rows';
+import type { InviteRequestRecord, InviteStatus } from '@flare/contracts';
+import { newId, nowSeconds, toInviteRequest, type InviteRequestRow } from '../rows';
+
+const INVITE_COLUMNS = 'id, name, email, reason, status, created_at, reviewed_at';
 
 export interface InsertInviteRequestInput {
   name: string;
@@ -36,4 +39,56 @@ export async function countRecentInviteRequests(
     .bind(email, nowSeconds() - windowSeconds)
     .first<{ count: number }>();
   return row?.count ?? 0;
+}
+
+/** Newest first, for the admin review page. */
+export async function listInviteRequests(
+  db: D1Database,
+  status: InviteStatus,
+  limit: number
+): Promise<InviteRequestRecord[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT ${INVITE_COLUMNS} FROM invite_requests WHERE status = ?
+       ORDER BY created_at DESC, rowid DESC LIMIT ?`
+    )
+    .bind(status, limit)
+    .all<InviteRequestRow>();
+  return (results ?? []).map(toInviteRequest);
+}
+
+export async function countInviteRequestsByStatus(
+  db: D1Database
+): Promise<Record<InviteStatus, number>> {
+  const { results } = await db
+    .prepare('SELECT status, COUNT(*) AS count FROM invite_requests GROUP BY status')
+    .all<{ status: string; count: number }>();
+  const counts: Record<InviteStatus, number> = { pending: 0, approved: 0, dismissed: 0 };
+  for (const row of results ?? []) {
+    if (row.status in counts) counts[row.status as InviteStatus] = row.count;
+  }
+  return counts;
+}
+
+export async function getInviteRequest(
+  db: D1Database,
+  id: string
+): Promise<InviteRequestRecord | null> {
+  const row = await db
+    .prepare(`SELECT ${INVITE_COLUMNS} FROM invite_requests WHERE id = ?`)
+    .bind(id)
+    .first<InviteRequestRow>();
+  return row ? toInviteRequest(row) : null;
+}
+
+export async function setInviteRequestStatus(
+  db: D1Database,
+  id: string,
+  status: InviteStatus
+): Promise<InviteRequestRecord | null> {
+  await db
+    .prepare('UPDATE invite_requests SET status = ?, reviewed_at = ? WHERE id = ?')
+    .bind(status, nowSeconds(), id)
+    .run();
+  return getInviteRequest(db, id);
 }

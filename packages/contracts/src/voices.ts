@@ -37,10 +37,62 @@ export function isVoiceId(value: unknown): value is VoiceId {
 export const VOICE_PREVIEW_TEXT =
   "Hi, I'm Flare. Say anything and I'll answer, with a mood to match.";
 
+// -----------------------------------------------------------------------------
+// Languages. Whisper reports an ISO 639-1 code; Kokoro has native voices for these.
+// -----------------------------------------------------------------------------
+
+export interface LanguageVoices {
+  name: string;
+  feminine: string;
+  masculine: string;
+}
+
+/** Kokoro voices per language other than English, by register. */
+export const LANGUAGE_VOICES: Record<string, LanguageVoices> = {
+  es: { name: 'Spanish', feminine: 'ef_dora', masculine: 'em_alex' },
+  fr: { name: 'French', feminine: 'ff_siwis', masculine: 'ff_siwis' },
+  hi: { name: 'Hindi', feminine: 'hf_alpha', masculine: 'hm_omega' },
+  it: { name: 'Italian', feminine: 'if_sara', masculine: 'im_nicola' },
+  ja: { name: 'Japanese', feminine: 'jf_alpha', masculine: 'jm_kumo' },
+  pt: { name: 'Portuguese', feminine: 'pf_dora', masculine: 'pm_alex' },
+  zh: { name: 'Chinese', feminine: 'zf_xiaobei', masculine: 'zm_yunxi' },
+};
+
+/** Languages Flare can both understand and speak; everything else falls back to English. */
+export const SPOKEN_LANGUAGES = ['en', ...Object.keys(LANGUAGE_VOICES)] as const;
+
+export const languageCodeSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .regex(/^[a-z]{2,3}(-[a-z0-9]{2,8})?$/i)
+  .transform((code) => code.split('-')[0] ?? code);
+
+/** Normalises a Whisper language code to one Flare can speak, or `en`. */
+export function speakableLanguage(code: string | null | undefined): string {
+  const base = (code ?? '').toLowerCase().split('-')[0] ?? '';
+  return base in LANGUAGE_VOICES ? base : 'en';
+}
+
+export function languageName(code: string): string {
+  return LANGUAGE_VOICES[code]?.name ?? 'English';
+}
+
 /**
- * Personalities change one line of the system prompt. They are kept short on purpose: the
- * prompt is paid for on every turn.
+ * Chooses the voice for a reply: the user's own voice for English, otherwise a native voice
+ * in the same register (feminine/masculine) as the user's choice.
  */
+export function voiceForLanguage(language: string, preferred: VoiceId): string {
+  const native = LANGUAGE_VOICES[speakableLanguage(language)];
+  if (!native) return preferred;
+  return preferred.charAt(1) === 'm' ? native.masculine : native.feminine;
+}
+
+// -----------------------------------------------------------------------------
+// Personalities. They change one line of the system prompt and are kept short on purpose:
+// the prompt is paid for on every turn.
+// -----------------------------------------------------------------------------
+
 export const PERSONAS = [
   {
     id: 'warm',

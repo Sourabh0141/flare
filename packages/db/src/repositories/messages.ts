@@ -1,7 +1,8 @@
 import type { Emotion, Gesture, Message } from '@flare/contracts';
 import { newId, nowSeconds, toMessage, type MessageRow } from '../rows';
 
-const MESSAGE_COLUMNS = 'id, conversation_id, role, content, emotion, gesture, created_at';
+const MESSAGE_COLUMNS =
+  'id, conversation_id, role, content, emotion, gesture, intensity, language, created_at';
 
 export interface InsertMessageInput {
   conversationId: string;
@@ -9,6 +10,8 @@ export interface InsertMessageInput {
   content: string;
   emotion?: Emotion | null;
   gesture?: Gesture | null;
+  intensity?: number | null;
+  language?: string | null;
   /** Explicit timestamp so a user message and its reply keep their relative order. */
   createdAt?: number;
 }
@@ -19,14 +22,26 @@ export async function insertMessage(db: D1Database, input: InsertMessageInput): 
   const createdAt = input.createdAt ?? nowSeconds();
   const emotion = input.emotion ?? null;
   const gesture = input.gesture ?? null;
+  const intensity = input.intensity ?? null;
+  const language = input.language ?? null;
 
   await db.batch([
     db
       .prepare(
-        `INSERT INTO messages (id, conversation_id, role, content, emotion, gesture, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO messages (id, conversation_id, role, content, emotion, gesture, intensity, language, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
-      .bind(id, input.conversationId, input.role, input.content, emotion, gesture, createdAt),
+      .bind(
+        id,
+        input.conversationId,
+        input.role,
+        input.content,
+        emotion,
+        gesture,
+        intensity,
+        language,
+        createdAt
+      ),
     db
       .prepare('UPDATE conversations SET updated_at = ? WHERE id = ?')
       .bind(createdAt, input.conversationId),
@@ -39,6 +54,8 @@ export async function insertMessage(db: D1Database, input: InsertMessageInput): 
     content: input.content,
     emotion,
     gesture,
+    intensity,
+    language,
     createdAt,
   };
 }
@@ -62,7 +79,7 @@ export async function getOwnedMessage(
 ): Promise<Message | null> {
   const row = await db
     .prepare(
-      `SELECT m.id, m.conversation_id, m.role, m.content, m.emotion, m.gesture, m.created_at
+      `SELECT m.id, m.conversation_id, m.role, m.content, m.emotion, m.gesture, m.intensity, m.language, m.created_at
        FROM messages m JOIN conversations c ON c.id = m.conversation_id
        WHERE m.id = ? AND c.user_id = ?`
     )
@@ -166,8 +183,8 @@ export async function replaceWithSummary(
     ),
     db
       .prepare(
-        `INSERT INTO messages (id, conversation_id, role, content, emotion, gesture, created_at)
-         VALUES (?, ?, 'summary', ?, NULL, NULL, ?)`
+        `INSERT INTO messages (id, conversation_id, role, content, emotion, gesture, intensity, language, created_at)
+         VALUES (?, ?, 'summary', ?, NULL, NULL, NULL, NULL, ?)`
       )
       .bind(newId(), conversationId, summaryContent, anchor),
   ];

@@ -6,6 +6,8 @@ import {
   isPersonaId,
   isVoiceId,
   type Conversation,
+  type InviteRequestRecord,
+  type InviteStatus,
   type Message,
   type MessageRole,
   type User,
@@ -29,6 +31,8 @@ export interface ConversationRow {
   id: string;
   user_id: string;
   title: string;
+  pinned: number;
+  archived: number;
   created_at: number;
   updated_at: number;
 }
@@ -40,7 +44,19 @@ export interface MessageRow {
   content: string;
   emotion: string | null;
   gesture: string | null;
+  intensity: number | null;
+  language: string | null;
   created_at: number;
+}
+
+export interface InviteRequestRow {
+  id: string;
+  name: string;
+  email: string;
+  reason: string;
+  status: string;
+  created_at: number;
+  reviewed_at: number | null;
 }
 
 export function toUser(row: UserRow): User {
@@ -59,6 +75,8 @@ export function toConversation(row: ConversationRow): Conversation {
   return {
     id: row.id,
     title: row.title,
+    pinned: row.pinned === 1,
+    archived: row.archived === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -74,7 +92,28 @@ export function toMessage(row: MessageRow): Message {
     // instead of breaking the client.
     emotion: isEmotion(row.emotion) ? row.emotion : null,
     gesture: isGesture(row.gesture) ? row.gesture : null,
+    intensity:
+      typeof row.intensity === 'number' && Number.isFinite(row.intensity)
+        ? Math.min(1, Math.max(0, row.intensity))
+        : null,
+    language: row.language,
     createdAt: row.created_at,
+  };
+}
+
+const INVITE_STATUSES: readonly InviteStatus[] = ['pending', 'approved', 'dismissed'];
+
+export function toInviteRequest(row: InviteRequestRow): InviteRequestRecord {
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    reason: row.reason,
+    status: (INVITE_STATUSES as readonly string[]).includes(row.status)
+      ? (row.status as InviteStatus)
+      : 'pending',
+    createdAt: row.created_at,
+    reviewedAt: row.reviewed_at,
   };
 }
 
