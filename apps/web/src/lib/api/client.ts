@@ -1,6 +1,7 @@
 import {
   apiErrorBodySchema,
   conversationDetailResponseSchema,
+  inviteResponseSchema,
   listConversationsResponseSchema,
   respondResponseSchema,
   settingsResponseSchema,
@@ -9,11 +10,14 @@ import {
   type ApiErrorCode,
   type Conversation,
   type ConversationDetailResponse,
+  type InviteRequest,
   type ListConversationsResponse,
   type RespondRequest,
   type RespondResponse,
   type TranscribeResponse,
+  type UpdateSettingsRequest,
   type User,
+  type VoiceId,
 } from '@flare/contracts';
 import type { ZodType } from 'zod';
 import { config } from '../config';
@@ -45,6 +49,8 @@ interface RequestOptions {
   body?: BodyInit;
   headers?: Record<string, string>;
   signal?: AbortSignal;
+  /** Public endpoints do not send a session token. */
+  anonymous?: boolean;
 }
 
 /**
@@ -62,12 +68,17 @@ export class ApiClient {
     return data.user;
   }
 
-  async updateDisplayName(displayName: string): Promise<User> {
+  async updateSettings(prefs: UpdateSettingsRequest): Promise<User> {
     const data = await this.request('/api/settings', settingsResponseSchema, {
       method: 'PATCH',
-      json: { displayName },
+      json: prefs,
     });
     return data.user;
+  }
+
+  /** Erases every conversation and preference. The sign-in account itself remains. */
+  async deleteAccountData(): Promise<void> {
+    await this.send('/api/settings', { method: 'DELETE' });
   }
 
   async listConversations(
@@ -85,9 +96,7 @@ export class ApiClient {
     return this.request(
       `/api/conversations/${encodeURIComponent(id)}`,
       conversationDetailResponseSchema,
-      {
-        signal,
-      }
+      { signal }
     );
   }
 
@@ -129,6 +138,23 @@ export class ApiClient {
     return response.blob();
   }
 
+  /** A fixed sample sentence in the given voice. */
+  async fetchVoicePreview(voice: VoiceId, signal?: AbortSignal): Promise<Blob> {
+    const response = await this.send(`/api/voices/${encodeURIComponent(voice)}/preview`, {
+      signal,
+    });
+    return response.blob();
+  }
+
+  /** Public: submit an invite request. */
+  async requestInvite(input: InviteRequest): Promise<void> {
+    await this.request('/api/invites', inviteResponseSchema, {
+      method: 'POST',
+      json: input,
+      anonymous: true,
+    });
+  }
+
   private async request<T>(
     path: string,
     schema: ZodType<T>,
@@ -155,16 +181,18 @@ export class ApiClient {
   }
 
   private async send(path: string, options: RequestOptions = {}): Promise<Response> {
-    const token = await this.getToken();
-    if (!token) {
-      throw new ApiClientError(
-        'unauthorized',
-        'Your session has ended. Sign in again to continue.'
-      );
+    const headers = new Headers(options.headers);
+    if (!options.anonymous) {
+      const token = await this.getToken();
+      if (!token) {
+        throw new ApiClientError(
+          'unauthorized',
+          'Your session has ended. Sign in again to continue.'
+        );
+      }
+      headers.set('authorization', `Bearer ${token}`);
     }
 
-    const headers = new Headers(options.headers);
-    headers.set('authorization', `Bearer ${token}`);
     let body = options.body;
     if (options.json !== undefined) {
       headers.set('content-type', 'application/json');
@@ -224,6 +252,8 @@ export function describeError(error: unknown): string {
         return "Flare couldn't hear anything. Hold the button a moment longer and speak clearly.";
       case 'rate_limited':
         return 'Slow down a little. Flare can take another turn in about a minute.';
+      case 'quota_exceeded':
+        return "You've used today's turns. Flare will be ready again tomorrow.";
       case 'payload_too_large':
         return 'That recording was too long. Keep each turn under a minute.';
       case 'unauthorized':

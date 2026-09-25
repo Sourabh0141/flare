@@ -1,9 +1,9 @@
 'use client';
 
 import { UserButton, useUser } from '@clerk/clerk-react';
-import { Plus, Settings, X } from 'lucide-react';
+import { Plus, Search, Settings, X } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useConversations } from '@/hooks/use-conversations';
 import { cn } from '@/lib/utils';
 import { useConversationStore } from '@/stores/conversation-store';
@@ -13,7 +13,6 @@ import { Spinner } from '../ui/spinner';
 import { Wordmark } from '../ui/wordmark';
 import { ConversationRow } from './conversation-row';
 import { DeleteConversationDialog } from './delete-conversation-dialog';
-import { SettingsDialog } from './settings-dialog';
 
 export interface SidebarProps {
   open: boolean;
@@ -38,11 +37,17 @@ export function Sidebar({ open, onClose, onInterrupt }: SidebarProps) {
   const listError = useConversationStore((s) => s.listError);
   const nextCursor = useConversationStore((s) => s.nextCursor);
   const [deleting, setDeleting] = useState<{ id: string; title: string } | null>(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [query, setQuery] = useState('');
 
   useEffect(() => {
     void loadList();
   }, [loadList]);
+
+  const visible = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return conversations;
+    return conversations.filter((c) => c.title.toLowerCase().includes(needle));
+  }, [conversations, query]);
 
   const select = (id: string) => {
     onInterrupt();
@@ -84,11 +89,27 @@ export function Sidebar({ open, onClose, onInterrupt }: SidebarProps) {
           </IconButton>
         </div>
 
-        <div className="px-3 pb-2">
+        <div className="flex flex-col gap-2 px-3 pb-2">
           <Button variant="secondary" className="w-full justify-start" onClick={handleNew}>
             <Plus className="size-4" />
             New conversation
           </Button>
+          {conversations.length > 4 ? (
+            <label className="relative block">
+              <Search
+                className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-smoke"
+                aria-hidden="true"
+              />
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search conversations"
+                aria-label="Search conversations"
+                className="h-9 w-full rounded-md border border-ash bg-ink pr-3 pl-8 text-sm text-linen placeholder:text-smoke focus:border-ember focus:outline-none"
+              />
+            </label>
+          ) : null}
         </div>
 
         <nav
@@ -115,9 +136,11 @@ export function Sidebar({ open, onClose, onInterrupt }: SidebarProps) {
             <p className="px-2 py-6 text-sm text-smoke">
               Your conversations will appear here. Each one is named after what you talk about.
             </p>
+          ) : visible.length === 0 ? (
+            <p className="px-2 py-6 text-sm text-smoke">No conversation matches that.</p>
           ) : (
             <ul className="flex flex-col gap-0.5">
-              {conversations.map((conversation) => (
+              {visible.map((conversation) => (
                 <li key={conversation.id}>
                   <ConversationRow
                     conversation={conversation}
@@ -130,7 +153,7 @@ export function Sidebar({ open, onClose, onInterrupt }: SidebarProps) {
               ))}
             </ul>
           )}
-          {nextCursor ? (
+          {nextCursor && !query ? (
             <div className="px-2 py-2">
               <Button
                 variant="ghost"
@@ -152,9 +175,14 @@ export function Sidebar({ open, onClose, onInterrupt }: SidebarProps) {
             </p>
             <p className="truncate text-xs text-smoke">{user?.primaryEmailAddress?.emailAddress}</p>
           </div>
-          <IconButton label="Settings" size="sm" onClick={() => setSettingsOpen(true)}>
+          <Link
+            href="/settings/"
+            aria-label="Settings"
+            title="Settings"
+            className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-linen-dim transition-colors hover:bg-soot-raised hover:text-linen"
+          >
             <Settings className="size-4" />
-          </IconButton>
+          </Link>
         </div>
       </aside>
 
@@ -167,7 +195,6 @@ export function Sidebar({ open, onClose, onInterrupt }: SidebarProps) {
           return error;
         }}
       />
-      <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </>
   );
 }

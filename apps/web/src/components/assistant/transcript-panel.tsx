@@ -1,8 +1,9 @@
 'use client';
 
 import type { Message } from '@flare/contracts';
-import { Play, Volume2, X } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { Check, Copy, Download, Play, Volume2, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { downloadText, formatTranscript, transcriptFileName } from '@/lib/transcript-export';
 import { cn, formatClock } from '@/lib/utils';
 import { useAssistantStore } from '@/stores/assistant-store';
 import { useConversationStore } from '@/stores/conversation-store';
@@ -36,15 +37,42 @@ export function TranscriptPanel({ open, onClose, onReplay, className }: Transcri
   const error = useConversationStore((s) => s.transcriptError);
   const pending = useConversationStore((s) => s.pendingTurn);
   const activeId = useConversationStore((s) => s.activeId);
+  const activeConversation = useConversationStore(
+    (s) => s.conversations.find((c) => c.id === s.activeId) ?? null
+  );
   const speakingId = useAssistantStore((s) => s.speakingMessageId);
   const state = useAssistantStore((s) => s.state);
   const endRef = useRef<HTMLDivElement>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
   }, [messages.length, pending, state]);
 
-  const canReplay = state === 'idle' || state === 'speaking';
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 1500);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
+  const canReplay = state === 'idle' || state === 'speaking' || state === 'listening';
+  const hasContent = messages.length > 0;
+
+  const copyTranscript = async () => {
+    try {
+      await navigator.clipboard.writeText(formatTranscript(activeConversation, messages));
+      setCopied(true);
+    } catch {
+      // Clipboard can be unavailable; the download button still works.
+    }
+  };
+
+  const exportTranscript = () => {
+    downloadText(
+      transcriptFileName(activeConversation?.title),
+      formatTranscript(activeConversation, messages)
+    );
+  };
 
   return (
     <aside
@@ -59,9 +87,27 @@ export function TranscriptPanel({ open, onClose, onReplay, className }: Transcri
     >
       <div className="flex h-16 items-center justify-between border-b border-ash/70 px-4">
         <h2 className="type-ui text-[15px] font-medium text-linen">Transcript</h2>
-        <IconButton label="Hide transcript" size="sm" onClick={onClose}>
-          <X className="size-4" />
-        </IconButton>
+        <div className="flex items-center gap-0.5">
+          <IconButton
+            label={copied ? 'Copied' : 'Copy transcript'}
+            size="sm"
+            onClick={() => void copyTranscript()}
+            disabled={!hasContent}
+          >
+            {copied ? <Check className="size-4 text-moss" /> : <Copy className="size-4" />}
+          </IconButton>
+          <IconButton
+            label="Download transcript"
+            size="sm"
+            onClick={exportTranscript}
+            disabled={!hasContent}
+          >
+            <Download className="size-4" />
+          </IconButton>
+          <IconButton label="Hide transcript" size="sm" onClick={onClose}>
+            <X className="size-4" />
+          </IconButton>
+        </div>
       </div>
 
       <div className="flex-1 scrollbar-thin overflow-y-auto px-4 py-4">
@@ -75,7 +121,7 @@ export function TranscriptPanel({ open, onClose, onReplay, className }: Transcri
           <div className="py-10 text-sm text-smoke">
             {activeId
               ? 'This conversation has no messages yet.'
-              : 'Nothing here yet. Hold the button and say hello; what you both say shows up here.'}
+              : 'Nothing here yet. Say hello; what you both say shows up here.'}
           </div>
         ) : (
           <ol className="flex flex-col gap-4">

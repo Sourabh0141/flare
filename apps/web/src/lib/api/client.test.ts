@@ -12,11 +12,18 @@ describe('ApiClient', () => {
   const client = new ApiClient(async () => 'token-123', 'https://api.test');
 
   it('attaches the bearer token and validates the response shape', async () => {
-    const fetchMock = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(
-        jsonResponse({ user: { id: 'u1', displayName: 'Ada', createdAt: 1, updatedAt: 1 } })
-      );
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      jsonResponse({
+        user: {
+          id: 'u1',
+          displayName: 'Ada',
+          voice: 'af_heart',
+          persona: 'warm',
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      })
+    );
     const user = await client.getSettings();
     expect(user.displayName).toBe('Ada');
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
