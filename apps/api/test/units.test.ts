@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { decodeCursor, encodeCursor } from '@flare/db';
-import { parseAllowedOrigins } from '../src/config/env.js';
-import { createOriginMatcher } from '../src/middleware/cors.js';
-import { parseAssistantTurn, sanitiseSpeech } from '../src/services/responder.js';
-import { buildCompanionSystemPrompt } from '../src/services/prompts.js';
+import { parseAllowedOrigins } from '../src/config/env';
+import { createOriginMatcher } from '../src/middleware/cors';
+import { parseAssistantTurn, sanitiseSpeech } from '../src/services/responder';
+import { buildCompanionSystemPrompt } from '../src/services/prompts';
 
 describe('origin matcher', () => {
   const matches = createOriginMatcher(
@@ -57,8 +57,17 @@ describe('assistant turn parsing', () => {
 
 describe('companion prompt', () => {
   it('stays compact and only asks for a title when needed', () => {
-    const withTitle = buildCompanionSystemPrompt('Ada', true);
-    const withoutTitle = buildCompanionSystemPrompt('Ada', false);
+    const withTitle = buildCompanionSystemPrompt({
+      displayName: 'Ada',
+      persona: 'warm',
+      wantsTitle: true,
+    });
+    const withoutTitle = buildCompanionSystemPrompt({
+      displayName: 'Ada',
+      persona: 'calm',
+      wantsTitle: false,
+    });
+    expect(withoutTitle).toContain('few words');
     expect(withTitle).toContain('"title"');
     expect(withoutTitle).not.toContain('"title"');
     expect(withTitle.length).toBeLessThan(700);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { call, readJson } from './helpers.js';
+import { call, readJson } from './helpers';
 
 describe('public surface', () => {
   it('reports health at / and /api/health', async () => {

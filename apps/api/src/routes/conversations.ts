@@ -13,9 +13,9 @@ import {
   listMessages,
   renameConversation,
 } from '@flare/db';
-import { ApiError } from '../lib/errors.js';
-import { validate } from '../middleware/validate.js';
-import type { AppEnv } from '../types.js';
+import { ApiError } from '../lib/errors';
+import { validate } from '../middleware/validate';
+import type { AppEnv } from '../types';
 
 export const conversationsRoutes = new Hono<AppEnv>();
 

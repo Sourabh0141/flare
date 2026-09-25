@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { HealthResponse } from '@flare/contracts';
-import type { AppEnv } from '../types.js';
+import type { AppEnv } from '../types';
 
 export const healthRoutes = new Hono<AppEnv>();
 

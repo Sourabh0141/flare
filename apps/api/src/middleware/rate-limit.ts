@@ -1,6 +1,6 @@
 import type { MiddlewareHandler } from 'hono';
-import { ApiError } from '../lib/errors.js';
-import type { AppEnv } from '../types.js';
+import { ApiError } from '../lib/errors';
+import type { AppEnv } from '../types';
 
 interface RateLimiter {
   limit(options: { key: string }): Promise<{ success: boolean }>;

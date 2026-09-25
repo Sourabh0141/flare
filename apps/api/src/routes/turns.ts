@@ -7,6 +7,7 @@ import {
   type TranscribeResponse,
 } from '@flare/contracts';
 import {
+  countUserTurnsSince,
   createConversation,
   getConversation,
   getConversationContext,
@@ -16,13 +17,13 @@ import {
   nowSeconds,
   setGeneratedTitle,
 } from '@flare/db';
-import { ApiError } from '../lib/errors.js';
-import { rateLimitBy } from '../middleware/rate-limit.js';
-import { validate } from '../middleware/validate.js';
-import { DeepInfraClient } from '../services/deepinfra.js';
-import { generateReply } from '../services/responder.js';
-import { maybeSummarize } from '../services/summarizer.js';
-import type { AppEnv } from '../types.js';
+import { ApiError } from '../lib/errors';
+import { rateLimitBy } from '../middleware/rate-limit';
+import { validate } from '../middleware/validate';
+import { DeepInfraClient } from '../services/deepinfra';
+import { generateReply } from '../services/responder';
+import { maybeSummarize } from '../services/summarizer';
+import type { AppEnv } from '../types';
 
 /** A conversation idle for longer than this starts a fresh thread on the next turn. */
 export const CONVERSATION_STALE_SECONDS = 30 * 60;
@@ -36,6 +37,11 @@ const AUDIO_EXTENSIONS: Record<string, string> = {
   'audio/x-wav': 'wav',
   'audio/flac': 'flac',
 };
+
+/** Start of the current UTC day in epoch seconds. */
+export function startOfUtcDay(now: number = nowSeconds()): number {
+  return now - (now % 86_400);
+}
 
 export const turnsRoutes = new Hono<AppEnv>();
 
@@ -105,11 +111,21 @@ turnsRoutes.post('/transcribe', async (c) => {
 turnsRoutes.post('/respond', validate('json', respondRequestSchema), async (c) => {
   const userId = c.get('userId');
   const logger = c.get('logger');
-  const { deepinfra } = c.get('config');
+  const { deepinfra, dailyTurnLimit } = c.get('config');
   const { conversationId, transcript } = c.req.valid('json');
   const db = c.env.DB;
 
   const user = await getOrCreateUser(db, userId);
+
+  // Daily cap: a spending guard for the provider bill, checked before any model call.
+  const turnsToday = await countUserTurnsSince(db, userId, startOfUtcDay());
+  if (turnsToday >= dailyTurnLimit) {
+    throw new ApiError(
+      'quota_exceeded',
+      "You've reached today's limit of turns. Flare will be ready again tomorrow.",
+      { details: { limit: dailyTurnLimit } }
+    );
+  }
 
   // Resolve the thread: continue it when it exists, is owned, and is still warm.
   let conversation = conversationId ? await getConversation(db, conversationId, userId) : null;
@@ -134,6 +150,7 @@ turnsRoutes.post('/respond', validate('json', respondRequestSchema), async (c) =
   const turn = await generateReply(client, {
     model: deepinfra.llmModel,
     displayName: user.displayName,
+    persona: user.persona,
     context,
     transcript,
     wantsTitle,
@@ -168,6 +185,7 @@ turnsRoutes.post('/respond', validate('json', respondRequestSchema), async (c) =
     isNewConversation,
     userMessage,
     assistantMessage,
+    turnsRemainingToday: Math.max(0, dailyTurnLimit - turnsToday - 1),
   };
   return c.json(body);
 });

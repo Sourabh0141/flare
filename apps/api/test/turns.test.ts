@@ -10,7 +10,7 @@ import {
   seedMessages,
   stubUpstream,
   testEnv,
-} from './helpers.js';
+} from './helpers';
 
 const webmBytes = new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 1, 2, 3, 4]);
 
@@ -247,7 +247,8 @@ describe('POST /api/turns/respond', () => {
 
   it('folds the oldest messages into a summary once the thread grows past the threshold', async () => {
     const id = await seedConversation('user_a');
-    await seedMessages(id, 19);
+    // Dated in the past so the seeded turns do not count against today's cap.
+    await seedMessages(id, 19, { startAt: Math.floor(Date.now() / 1000) - 2 * 86_400 });
     const { calls } = stubUpstream({
       chat: ({ init }) => {
         const request = JSON.parse(String(init.body)) as { messages: Array<{ content: string }> };

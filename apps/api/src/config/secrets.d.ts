@@ -7,6 +7,8 @@ interface __FlareSecrets {
   CLERK_JWT_KEY?: string;
   CLERK_SECRET_KEY?: string;
   DEEPINFRA_API_KEY?: string;
+  /** Optional: enables Cloudflare Turnstile verification on public forms. */
+  TURNSTILE_SECRET_KEY?: string;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type

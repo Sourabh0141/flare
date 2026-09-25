@@ -1,5 +1,5 @@
-import { ApiError } from '../lib/errors.js';
-import { isTimeoutError, timeoutSignal } from '../lib/timeout.js';
+import { ApiError } from '../lib/errors';
+import { isTimeoutError, timeoutSignal } from '../lib/timeout';
 
 /**
  * Thin client for DeepInfra's OpenAI-compatible endpoints. Every call is bounded by a

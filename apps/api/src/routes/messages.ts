@@ -1,10 +1,10 @@
 import { Hono } from 'hono';
 import { SPEECH_CONTENT_TYPE } from '@flare/contracts';
-import { getOwnedMessage } from '@flare/db';
-import { ApiError } from '../lib/errors.js';
-import { rateLimitBy } from '../middleware/rate-limit.js';
-import { DeepInfraClient } from '../services/deepinfra.js';
-import type { AppEnv } from '../types.js';
+import { getOrCreateUser, getOwnedMessage } from '@flare/db';
+import { ApiError } from '../lib/errors';
+import { rateLimitBy } from '../middleware/rate-limit';
+import { DeepInfraClient } from '../services/deepinfra';
+import type { AppEnv } from '../types';
 
 export const messagesRoutes = new Hono<AppEnv>();
 
@@ -15,27 +15,31 @@ messagesRoutes.use(
 
 /**
  * GET /api/messages/:id/audio
- * Streams synthesized speech for one of the caller's assistant messages. Binding speech to
- * a stored message (rather than accepting free text) keeps the endpoint from being used as
- * an open text-to-speech proxy, and lets the client replay past replies.
+ * Streams synthesized speech for one of the caller's assistant messages in the caller's
+ * chosen voice. Binding speech to a stored message (rather than accepting free text) keeps
+ * the endpoint from being used as an open text-to-speech proxy, and lets the client replay
+ * past replies.
  */
 messagesRoutes.get('/:id/audio', async (c) => {
-  const message = await getOwnedMessage(c.env.DB, c.req.param('id'), c.get('userId'));
+  const userId = c.get('userId');
+  const message = await getOwnedMessage(c.env.DB, c.req.param('id'), userId);
   if (!message || message.role !== 'assistant') {
     throw new ApiError('not_found', 'Message not found.');
   }
 
+  const user = await getOrCreateUser(c.env.DB, userId);
   const { deepinfra } = c.get('config');
   const client = new DeepInfraClient({ apiKey: deepinfra.apiKey });
   const speech = await client.speak({
     model: deepinfra.ttsModel,
-    voice: deepinfra.ttsVoice,
+    voice: user.voice,
     text: message.content,
     signal: c.req.raw.signal,
   });
 
   c.get('logger').info('tts.started', {
     messageId: message.id,
+    voice: user.voice,
     characters: message.content.length,
   });
 

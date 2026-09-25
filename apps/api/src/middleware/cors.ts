@@ -1,7 +1,7 @@
 import { cors } from 'hono/cors';
 import type { MiddlewareHandler } from 'hono';
-import { parseAllowedOrigins } from '../config/env.js';
-import type { AppEnv } from '../types.js';
+import { parseAllowedOrigins } from '../config/env';
+import type { AppEnv } from '../types';
 
 const LOCAL_DEV_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 

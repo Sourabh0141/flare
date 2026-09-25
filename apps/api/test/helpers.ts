@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:workers';
 import { vi } from 'vitest';
-import { createApp } from '../src/app.js';
+import { createApp } from '../src/app';
 
 export const app = createApp();
 
@@ -32,6 +32,8 @@ export interface CallOptions {
   body?: BodyInit;
   headers?: Record<string, string>;
   ctx?: ExecutionContext;
+  /** Override bindings for one call (for example to add an optional secret). */
+  env?: Env;
 }
 
 /** Issues a request to the in-process app with optional auth and JSON body. */
@@ -53,7 +55,7 @@ export async function call(path: string, options: CallOptions = {}): Promise<Res
   return app.request(
     `https://api.test${path}`,
     { method: options.method ?? (body ? 'POST' : 'GET'), headers, ...(body ? { body } : {}) },
-    testEnv,
+    options.env ?? testEnv,
     options.ctx ?? ctx
   );
 }
@@ -164,7 +166,10 @@ export async function seedMessages(
   await testEnv.DB.batch(statements);
 }
 
-export async function countRows(table: 'users' | 'conversations' | 'messages', where = '1=1') {
+export async function countRows(
+  table: 'users' | 'conversations' | 'messages' | 'invite_requests',
+  where = '1=1'
+) {
   const row = await testEnv.DB.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE ${where}`).first<{
     n: number;
   }>();

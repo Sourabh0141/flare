@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { call, readJson, seedConversation, stubUpstream, testEnv } from './helpers.js';
+import { call, readJson, seedConversation, stubUpstream, testEnv } from './helpers';
 
 async function seedAssistantMessage(conversationId: string, content: string, role = 'assistant') {
   const id = crypto.randomUUID();
@@ -30,7 +30,7 @@ describe('GET /api/messages/:id/audio', () => {
     const request = JSON.parse(String(calls[0]?.init.body)) as Record<string, unknown>;
     expect(request).toMatchObject({
       model: testEnv.DEEPINFRA_TTS_MODEL,
-      voice: testEnv.DEEPINFRA_TTS_VOICE,
+      voice: 'af_heart',
       input: 'Good morning, Ada.',
       response_format: 'mp3',
     });

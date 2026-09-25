@@ -1,7 +1,7 @@
 import type { MiddlewareHandler } from 'hono';
-import { loadConfig } from '../config/env.js';
-import { rootLogger } from '../lib/logger.js';
-import type { AppEnv } from '../types.js';
+import { loadConfig } from '../config/env';
+import { rootLogger } from '../lib/logger';
+import type { AppEnv } from '../types';
 
 /**
  * Assigns a request id, a bound logger and the validated config to the context, and logs one

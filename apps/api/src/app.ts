@@ -1,15 +1,17 @@
 import { Hono } from 'hono';
-import { requireAuth } from './middleware/auth.js';
-import { corsMiddleware } from './middleware/cors.js';
-import { onError, onNotFound } from './middleware/error-handler.js';
-import { rateLimitBy } from './middleware/rate-limit.js';
-import { requestContext } from './middleware/request-context.js';
-import { conversationsRoutes } from './routes/conversations.js';
-import { healthRoutes } from './routes/health.js';
-import { messagesRoutes } from './routes/messages.js';
-import { settingsRoutes } from './routes/settings.js';
-import { turnsRoutes } from './routes/turns.js';
-import type { AppEnv } from './types.js';
+import { requireAuth } from './middleware/auth';
+import { corsMiddleware } from './middleware/cors';
+import { onError, onNotFound } from './middleware/error-handler';
+import { rateLimitBy } from './middleware/rate-limit';
+import { requestContext } from './middleware/request-context';
+import { conversationsRoutes } from './routes/conversations';
+import { healthRoutes } from './routes/health';
+import { invitesRoutes } from './routes/invites';
+import { messagesRoutes } from './routes/messages';
+import { settingsRoutes } from './routes/settings';
+import { turnsRoutes } from './routes/turns';
+import { voicesRoutes } from './routes/voices';
+import type { AppEnv } from './types';
 
 /**
  * Assembles the API. Middleware order matters: CORS answers preflights before anything can
@@ -28,6 +30,7 @@ export function createApp() {
   // Public
   app.route('/', healthRoutes);
   app.route('/api/health', healthRoutes);
+  app.route('/api/invites', invitesRoutes);
 
   // Protected
   const api = new Hono<AppEnv>();
@@ -40,6 +43,7 @@ export function createApp() {
   api.route('/conversations', conversationsRoutes);
   api.route('/turns', turnsRoutes);
   api.route('/messages', messagesRoutes);
+  api.route('/voices', voicesRoutes);
   app.route('/api', api);
 
   return app;

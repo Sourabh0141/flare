@@ -1,8 +1,8 @@
 import type { Context, ErrorHandler, NotFoundHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import { ApiError } from '../lib/errors.js';
-import { rootLogger } from '../lib/logger.js';
-import type { AppEnv } from '../types.js';
+import { ApiError } from '../lib/errors';
+import { rootLogger } from '../lib/logger';
+import type { AppEnv } from '../types';
 
 function respond(c: Context<AppEnv>, error: ApiError): Response {
   // Context variables may be unset when the failure happened before requestContext ran.

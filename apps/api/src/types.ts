@@ -1,5 +1,5 @@
-import type { AppBindings, AppConfig } from './config/env.js';
-import type { Logger } from './lib/logger.js';
+import type { AppBindings, AppConfig } from './config/env';
+import type { Logger } from './lib/logger';
 
 /** Context variables populated by middleware, available to every handler via `c.get`. */
 export interface AppVariables {

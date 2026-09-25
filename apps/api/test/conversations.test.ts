@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { call, countRows, readJson, seedConversation, seedMessages } from './helpers.js';
+import { call, countRows, readJson, seedConversation, seedMessages } from './helpers';
 
 interface ConversationDto {
   id: string;

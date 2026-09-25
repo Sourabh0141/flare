@@ -31,6 +31,7 @@ beforeEach(async () => {
     testEnv.DB.prepare('DELETE FROM messages'),
     testEnv.DB.prepare('DELETE FROM conversations'),
     testEnv.DB.prepare('DELETE FROM users'),
+    testEnv.DB.prepare('DELETE FROM invite_requests'),
   ]);
   vi.unstubAllGlobals();
 });

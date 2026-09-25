@@ -1,7 +1,7 @@
 import { verifyToken } from '@clerk/backend';
 import type { MiddlewareHandler } from 'hono';
-import { ApiError } from '../lib/errors.js';
-import type { AppEnv } from '../types.js';
+import { ApiError } from '../lib/errors';
+import type { AppEnv } from '../types';
 
 /**
  * Authenticates with a Clerk session JWT from the Authorization header.

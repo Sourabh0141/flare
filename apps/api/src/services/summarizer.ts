@@ -4,9 +4,9 @@ import {
   getOldestLiveMessages,
   replaceWithSummary,
 } from '@flare/db';
-import type { Logger } from '../lib/logger.js';
-import type { DeepInfraClient } from './deepinfra.js';
-import { SUMMARY_SYSTEM_PROMPT, buildSummaryUserPrompt } from './prompts.js';
+import type { Logger } from '../lib/logger';
+import type { DeepInfraClient } from './deepinfra';
+import { SUMMARY_SYSTEM_PROMPT, buildSummaryUserPrompt } from './prompts';
 
 /** Once a conversation holds more than this many live messages, the oldest are folded in. */
 export const SUMMARIZE_THRESHOLD = 20;

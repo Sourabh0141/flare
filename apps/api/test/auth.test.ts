@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { call, readJson } from './helpers.js';
+import { call, readJson } from './helpers';
 
 describe('authentication guard', () => {
   it('rejects requests without an Authorization header', async () => {

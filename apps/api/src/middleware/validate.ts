@@ -1,7 +1,7 @@
 import { zValidator } from '@hono/zod-validator';
 import type { ValidationTargets } from 'hono';
 import type { ZodType } from 'zod';
-import { ApiError } from '../lib/errors.js';
+import { ApiError } from '../lib/errors';
 
 /**
  * `zValidator` with the project's error shape: invalid input becomes a `validation_failed`

@@ -18,6 +18,8 @@ export default defineConfig({
             CLERK_JWT_KEY: 'test-jwt-key',
             DEEPINFRA_API_KEY: 'test-deepinfra-key',
             ALLOWED_ORIGINS: 'https://app.example.com,https://*.preview.example.com',
+            // Small cap so the quota path is testable without seeding hundreds of rows.
+            DAILY_TURN_LIMIT: '5',
           },
         },
       };

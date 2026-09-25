@@ -6,11 +6,12 @@ import {
   isGesture,
   type Emotion,
   type Gesture,
+  type PersonaId,
 } from '@flare/contracts';
 import type { ConversationContext } from '@flare/db';
-import type { Logger } from '../lib/logger.js';
-import type { ChatMessage, DeepInfraClient } from './deepinfra.js';
-import { buildCompanionSystemPrompt } from './prompts.js';
+import type { Logger } from '../lib/logger';
+import type { ChatMessage, DeepInfraClient } from './deepinfra';
+import { buildCompanionSystemPrompt } from './prompts';
 
 export interface AssistantTurn {
   reply: string;
@@ -22,6 +23,7 @@ export interface AssistantTurn {
 export interface GenerateReplyInput {
   model: string;
   displayName: string;
+  persona: PersonaId;
   context: ConversationContext;
   transcript: string;
   /** Ask the model to name the conversation in the same call (first turn only). */
@@ -39,7 +41,14 @@ export async function generateReply(
   input: GenerateReplyInput
 ): Promise<AssistantTurn> {
   const messages: ChatMessage[] = [
-    { role: 'system', content: buildCompanionSystemPrompt(input.displayName, input.wantsTitle) },
+    {
+      role: 'system',
+      content: buildCompanionSystemPrompt({
+        displayName: input.displayName,
+        persona: input.persona,
+        wantsTitle: input.wantsTitle,
+      }),
+    },
   ];
 
   if (input.context.summary) {

@@ -12,3 +12,7 @@ DEEPINFRA_API_KEY=...
 
 # Optional overrides for local development.
 # ALLOWED_ORIGINS=http://localhost:3000
+# DAILY_TURN_LIMIT=300
+
+# Optional: Cloudflare Turnstile secret key; enables bot verification on the invite form.
+# TURNSTILE_SECRET_KEY=0x4AAAAAAA...
