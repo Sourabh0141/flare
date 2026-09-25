@@ -10,3 +10,5 @@ public/models
 .agents
 *.glb
 *.wav
+apps/web/next-env.d.ts
+apps/api/worker-configuration.d.ts
