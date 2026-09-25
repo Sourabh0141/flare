@@ -30,6 +30,10 @@ export function useVoiceTurn() {
   useEffect(() => {
     const player = getVoicePlayer();
     return player.subscribe((event) => {
+      if (event === 'play') {
+        assistant.getState().setState('speaking');
+        return;
+      }
       if (event === 'ended' || event === 'error' || event === 'stop') {
         const state = assistant.getState();
         if (state.state === 'speaking') state.setState('idle');
@@ -82,10 +86,10 @@ export function useVoiceTurn() {
         cache.set(messageId, blob);
       }
 
-      state.setSpeakingMessage(messageId);
-      state.setState('speaking');
       try {
+        // The player emits 'play' once audio starts, which moves the state to speaking.
         await player.play(blob);
+        state.setSpeakingMessage(messageId);
       } catch {
         // Autoplay policies can reject playback; leave the transcript readable.
         state.setSpeakingMessage(null);
@@ -147,7 +151,6 @@ export function useVoiceTurn() {
             error.code === 'upstream_timeout' ||
             error.code === 'network');
         if (isProviderTrouble) {
-          state.setState('speaking');
           await getVoicePlayer()
             .playUrl(FALLBACK_AUDIO_URL)
             .catch(() => state.setState('idle'));

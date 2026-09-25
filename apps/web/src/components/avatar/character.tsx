@@ -119,6 +119,15 @@ export function Character({
   const currentBase = useRef<THREE.AnimationAction | null>(null);
   const currentBaseName = useRef<string | null>(null);
   const reaction = useRef<ActiveReaction | null>(null);
+  /** Bones the current base clip drives; the rest are reset to their rest pose each frame. */
+  const animatedBones = useRef<Set<string>>(new Set());
+  const restRotations = useMemo(() => {
+    const rest = new Map<string, THREE.Euler>();
+    for (const bone of [bones.head, bones.leftEye, bones.rightEye]) {
+      if (bone) rest.set(bone.name, bone.rotation.clone());
+    }
+    return rest;
+  }, [bones]);
 
   useEffect(() => {
     for (const clip of idle.animations) clips.current.set(clip.name, clip);
@@ -155,6 +164,7 @@ export function Character({
     currentBase.current?.fadeOut(0.45);
     currentBase.current = next;
     currentBaseName.current = clip.name;
+    animatedBones.current = new Set(clip.tracks.map((track) => track.name.split('.')[0] ?? ''));
   }
 
   function playReaction(spec: ReactionClip, now: number) {
@@ -190,7 +200,6 @@ export function Character({
   const blink = useRef(createBlinkState());
   const gaze = useRef(createGazeState());
   const expressionWeights = useRef<Record<string, number>>({});
-  const headRest = useRef<THREE.Euler | null>(null);
 
   useFrame(({ clock, pointer }, rawDelta) => {
     const delta = Math.min(rawDelta, 0.05);
@@ -224,6 +233,13 @@ export function Character({
 
     mixer.update(delta);
 
+    // Offsets below are additive, so bones the clip does not animate start from rest.
+    for (const bone of [bones.head, bones.leftEye, bones.rightEye]) {
+      if (!bone || animatedBones.current.has(bone.name)) continue;
+      const rest = restRotations.get(bone.name);
+      if (rest) bone.rotation.copy(rest);
+    }
+
     // 3. Gaze target: pointer on the landing page, otherwise conversational.
     const target = followPointer
       ? { x: clamp(-pointer.x, -1, 1) * 0.8, y: clamp(pointer.y, -1, 1) * 0.5 }
@@ -244,7 +260,6 @@ export function Character({
 
     // 4. Head: follows the gaze a little, leans in while listening, plus gestures.
     if (bones.head) {
-      if (!headRest.current) headRest.current = bones.head.rotation.clone();
       const lean = state === 'listening' ? 0.06 : state === 'thinking' ? -0.03 : 0;
       let pitch = -look.y * 0.18 + lean;
       let yaw = look.x * 0.3;
