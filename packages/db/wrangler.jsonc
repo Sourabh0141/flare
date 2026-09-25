@@ -6,7 +6,7 @@
       "binding": "DB",
       "database_name": "flare-db",
       "database_id": "0a661df7-5c0b-4966-837d-a9e65a2c3d77",
-      "migrations_dir": "migrations"
-    }
-  ]
+      "migrations_dir": "migrations",
+    },
+  ],
 }
