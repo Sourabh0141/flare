@@ -12,3 +12,7 @@ public/models
 *.wav
 apps/web/next-env.d.ts
 apps/api/worker-configuration.d.ts
+apps/web/public/vad
+apps/web/public/_headers
+apps/web/models-src
+docs/poster.svg

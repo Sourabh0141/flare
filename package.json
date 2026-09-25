@@ -30,13 +30,7 @@
     "prettier": "^3.9.9",
     "prettier-plugin-tailwindcss": "^0.7.1",
     "typescript": "^5.9.3",
-    "wrangler": "^4.139.0"
-  },
-  "allowScripts": {
-    "esbuild@0.28.1": true,
-    "workerd@1.20260923.1": true,
-    "@clerk/shared@3.48.0": true,
-    "@clerk/shared@4.36.0": true,
-    "unrs-resolver@1.12.2": true
+    "wrangler": "^4.139.0",
+    "@gltf-transform/cli": "^4.5.0"
   }
 }
