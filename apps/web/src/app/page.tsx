@@ -1,42 +1,26 @@
-'use client';
+import type { Metadata } from 'next';
+import { SiteFooter } from '@/components/layout/site-footer';
+import { SiteHeader } from '@/components/layout/site-header';
+import { AliveList } from '@/components/marketing/alive-list';
+import { Hero } from '@/components/marketing/hero';
+import { PrivacyNotes } from '@/components/marketing/privacy-notes';
+import { TurnSequence } from '@/components/marketing/turn-sequence';
 
-import React, { useState } from 'react';
-import { useAuth } from '@clerk/clerk-react';
-import { LandingHero } from '@/components/LandingHero';
-import { Sidebar } from '@/components/Sidebar';
-import { MainCanvas } from '@/components/MainCanvas';
-import { Loader2 } from 'lucide-react';
+export const metadata: Metadata = {
+  title: 'Flare: a voice companion with a face',
+};
 
 export default function HomePage() {
-  const { isLoaded, isSignedIn } = useAuth();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-
-  // Show dark loading screen while Clerk initializes
-  if (!isLoaded) {
-    return (
-      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-zinc-950 text-zinc-400">
-        <Loader2 className="w-8 h-8 animate-spin text-purple-500 mb-3" />
-        <span className="text-sm font-medium text-zinc-500">Initializing Flare...</span>
-      </div>
-    );
-  }
-
-  // Unauthenticated visitors see the Landing Page Hero
-  if (!isSignedIn) {
-    return <LandingHero />;
-  }
-
-  // Authenticated users see the Main Application Shell
   return (
-    <div className="flex h-screen w-full bg-zinc-950 overflow-hidden">
-      <Sidebar
-        isOpen={isSidebarOpen}
-        onToggle={() => setIsSidebarOpen((prev) => !prev)}
-      />
-      <MainCanvas
-        isSidebarOpen={isSidebarOpen}
-        onOpenSidebar={() => setIsSidebarOpen(true)}
-      />
+    <div className="flex min-h-dvh flex-col">
+      <SiteHeader />
+      <main className="flex-1">
+        <Hero />
+        <TurnSequence />
+        <AliveList />
+        <PrivacyNotes />
+      </main>
+      <SiteFooter />
     </div>
   );
 }
