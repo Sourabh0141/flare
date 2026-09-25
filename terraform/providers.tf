@@ -8,18 +8,16 @@ terraform {
     }
   }
 
-  # S3-compatible remote state backend targeting Cloudflare R2.
+  # Remote state in R2 through its S3-compatible API. Credentials and the endpoint are
+  # passed at init time by CI:
   #
-  # R2 credentials and endpoint are injected dynamically during `terraform init`:
   #   terraform init \
-  #     -backend-config="access_key=${R2_ACCESS_KEY_ID}" \
-  #     -backend-config="secret_key=${R2_SECRET_ACCESS_KEY}" \
-  #     -backend-config="endpoints={s3=\"https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com\"}"
+  #     -backend-config="access_key=$R2_ACCESS_KEY_ID" \
+  #     -backend-config="secret_key=$R2_SECRET_ACCESS_KEY" \
+  #     -backend-config="endpoints={s3=\"https://$CLOUDFLARE_ACCOUNT_ID.r2.cloudflarestorage.com\"}"
   #
-  # Note on bootstrapping:
-  # For a fresh environment, comment out this backend block for the first run,
-  # execute `terraform apply` locally to provision the state bucket, then uncomment
-  # this block and run `terraform init -migrate-state`.
+  # Bootstrapping a fresh account: create the `flare-tf-state` bucket by hand (or apply once
+  # with this block commented out), then run `terraform init -migrate-state`.
   backend "s3" {
     bucket                      = "flare-tf-state"
     key                         = "production/terraform.tfstate"

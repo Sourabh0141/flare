@@ -1,42 +1,51 @@
 # -----------------------------------------------------------------------------
-# Cloudflare R2 Public Assets Bucket (avatar.glb, animations.glb, fallback.mp3)
+# Flare infrastructure on Cloudflare (free plan throughout).
+#
+#   D1  -> relational store for users, conversations and transcripts
+#   R2  -> optional public asset bucket for the 3D models
+#   Pages -> the statically exported web client
+#
+# The API Worker itself is deployed by Wrangler from CI (`wrangler deploy`), which also
+# manages its secrets; Terraform only provisions the resources the Worker binds to.
 # -----------------------------------------------------------------------------
 
-resource "cloudflare_r2_bucket" "app_assets" {
-  account_id = var.cloudflare_account_id
-  name       = "${var.project_name}-assets"
-  location   = var.r2_location != "auto" ? var.r2_location : null
+locals {
+  name_prefix = var.project_name
 }
 
-# -----------------------------------------------------------------------------
-# Cloudflare D1 Relational SQLite Database
-# -----------------------------------------------------------------------------
-
-resource "cloudflare_d1_database" "flare_db" {
+module "database" {
+  source     = "./modules/d1-database"
   account_id = var.cloudflare_account_id
-  name       = "${var.project_name}-db"
+  name       = "${local.name_prefix}-db"
 }
 
-# -----------------------------------------------------------------------------
-# Cloudflare Pages Project for Next.js Frontend
-# -----------------------------------------------------------------------------
+module "assets" {
+  source     = "./modules/r2-bucket"
+  account_id = var.cloudflare_account_id
+  name       = "${local.name_prefix}-assets"
+  location   = var.r2_location
+}
 
-resource "cloudflare_pages_project" "frontend" {
+module "web" {
+  source            = "./modules/pages-project"
   account_id        = var.cloudflare_account_id
-  name              = "${var.project_name}-web"
+  name              = "${local.name_prefix}-web"
   production_branch = "main"
+}
 
-  build_config {
-    build_command   = "npm run build"
-    destination_dir = "out"
-    root_dir        = "apps/web"
-  }
+# Existing state was created with top-level resources; keep their addresses stable so
+# `terraform apply` does not try to destroy and recreate them.
+moved {
+  from = cloudflare_d1_database.flare_db
+  to   = module.database.cloudflare_d1_database.this
+}
 
-  deployment_configs {
-    production {
-      environment_variables = {
-        NODE_VERSION = "22"
-      }
-    }
-  }
+moved {
+  from = cloudflare_r2_bucket.app_assets
+  to   = module.assets.cloudflare_r2_bucket.this
+}
+
+moved {
+  from = cloudflare_pages_project.frontend
+  to   = module.web.cloudflare_pages_project.this
 }
