@@ -13,6 +13,7 @@ const shortcuts = [
   ['Space (hold)', 'Talk while held; release to send'],
   ['Escape', 'Interrupt Flare or cancel a turn'],
   ['M', 'Mute or unmute in hands-free mode'],
+  ['?', 'Show the shortcuts overlay'],
 ] as const;
 
 const faqs = [
@@ -27,6 +28,14 @@ const faqs = [
   {
     q: 'How does hands-free mode decide when I have finished?',
     a: 'It measures the room for half a second, then listens for your voice above that level. When you pause for about three quarters of a second, the turn is sent. While Flare thinks or speaks the microphone is paused, so it can never answer itself. Tap the button or press M to mute at any time.',
+  },
+  {
+    q: 'Can I interrupt Flare by talking over it?',
+    a: 'Yes, if you turn on "Interrupt by speaking" in Settings. In hands-free mode Flare then keeps a stricter ear open while it talks and stops when you say something deliberate. It works best with headphones; with speakers it can occasionally hear itself, which is why it is off by default.',
+  },
+  {
+    q: 'Does Flare speak other languages?',
+    a: 'Speak Spanish, French, Hindi, Italian, Japanese, Portuguese or Chinese and Flare answers in that language with a native voice matching the register of the voice you chose. Other languages get an English reply.',
   },
   {
     q: 'Which browsers work?',

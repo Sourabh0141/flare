@@ -8,6 +8,25 @@ export interface ChangelogEntry {
 /** Newest first. Dates are ISO so they sort and render predictably. */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.2.0',
+    date: '2026-09-25',
+    title: 'Faster replies, more languages, a sharper ear',
+    changes: [
+      'Flare starts speaking as soon as its first sentence is ready, while the rest is still being written. Replies stream into the transcript word by word.',
+      'Speak Spanish, French, Hindi, Italian, Japanese, Portuguese or Chinese and Flare answers in that language with a native voice of the register you chose.',
+      'Hands-free now uses a small on-device neural detector (Silero VAD) that tells speech from noise, with the old volume gate as a fallback.',
+      'Interrupt by speaking, an option for headphone users: Flare keeps listening while it talks and stops when you cut in.',
+      'Emotion intensity: the model says how strongly it feels, and the face and body scale to match. Try the slider in the playground.',
+      'Lips follow the words: mouth shapes are timed from the text and driven by the sound, instead of sound alone.',
+      'The character reacts while you talk (a small nod when you start, brows that follow your voice), glances away now and then, shifts its weight, and its eyes follow your pointer in the app too.',
+      'Pin conversations to the top and archive the rest. Press ? for keyboard shortcuts.',
+      'Soft tones when listening starts and a turn is sent.',
+      'The 3D models are a fifth of their previous size, so the character appears sooner.',
+      'Administrators can review invite requests and send invitations from the app.',
+      'A live API reference at /api/docs, a content security policy on every page, and recovery screens if something crashes.',
+    ],
+  },
+  {
     version: '1.1.0',
     date: '2026-09-25',
     title: 'Hands-free, voices, and a place to ask for an invite',

@@ -18,9 +18,10 @@ export function PipelineDiagram() {
       <title id="pipeline-title">Flare request path</title>
       <desc id="pipeline-desc">
         The browser records audio and sends it to the Worker, which forwards it to Whisper for text.
-        The browser then sends the transcript; the Worker reads the conversation from D1, asks Llama
-        for a reply with mood and gesture, saves both messages, and returns them. The browser
-        finally requests audio for the reply, which the Worker streams from Kokoro.
+        The browser then sends the transcript; the Worker reads the conversation from D1, streams a
+        reply from Llama with a mood, gesture and intensity tag, asks Kokoro for audio of each
+        sentence as it completes, saves both messages, and sends text and audio back over one event
+        stream.
       </desc>
       <defs>
         <marker
@@ -90,10 +91,10 @@ export function PipelineDiagram() {
         transcript
       </text>
       <text x="600" y="172" textAnchor="middle" className={text}>
-        reply as JSON
+        reply stream
       </text>
       <text x="120" y="184" textAnchor="middle" className={muted}>
-        2. transcript shown
+        2. words stream in
       </text>
       <rect x="395" y="232" width="90" height="26" rx="6" className="fill-ink stroke-ash" />
       <text x="440" y="249" textAnchor="middle" className={muted}>
@@ -106,10 +107,10 @@ export function PipelineDiagram() {
         <path d="M340 250 H220" />
       </g>
       <text x="600" y="242" textAnchor="middle" className={text}>
-        mp3 stream
+        mp3 per sentence
       </text>
       <text x="280" y="242" textAnchor="middle" className={text}>
-        streamed through
+        spoken as it lands
       </text>
       <text x="120" y="254" textAnchor="middle" className={muted}>
         3. speak and animate

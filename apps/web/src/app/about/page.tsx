@@ -31,7 +31,11 @@ const stack = [
   ],
   [
     'Speaking',
-    'Kokoro-82M, streamed as MP3 straight from the provider through the Worker to the browser.',
+    'Kokoro-82M, one sentence at a time as the reply streams, so the first words arrive while the rest is still being written.',
+  ],
+  [
+    'Listening',
+    'Silero VAD, a small neural voice detector running on your device through ONNX Runtime Web, with an energy gate as fallback.',
   ],
   ['Character', 'A Ready Player Me rig with ARKit blend shapes and a small library of body clips.'],
 ] as const;
@@ -66,15 +70,17 @@ export default function AboutPage() {
                 device. The Worker never decodes audio or parses uploads; it forwards a raw body and
                 streams the reply back.
               </Explainer>
-              <Explainer title="A turn is three requests">
-                Transcribe, respond, and speak are separate calls. Each stays far below the
-                ten-millisecond CPU limit of a free Worker, the transcript can appear before the
-                reply exists, and any stage can be cancelled without wasting the others.
+              <Explainer title="The reply streams, sentence by sentence">
+                The model&apos;s words arrive as a stream. The Worker splits them at sentence
+                boundaries and asks for audio of each sentence the moment it is complete, so the
+                first words are spoken while the rest is still being written. Every stage can be
+                cancelled without wasting the others.
               </Explainer>
               <Explainer title="One model call per turn">
-                The reply, the mood, the gesture and (on a new thread) the title come back as one
-                small JSON object. Prompts are short and the history is condensed into a summary
-                once a conversation passes twenty messages.
+                The reply begins with a one-line tag carrying the mood, a gesture, how strongly it
+                is felt and, on a new thread, a title; the spoken text follows. Prompts are short,
+                replies come back in your language, and the history is condensed into a summary once
+                a conversation passes twenty messages.
               </Explainer>
             </div>
           </section>

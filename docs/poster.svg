@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 520" width="1200" height="520" role="img" aria-labelledby="t d">
+  <title id="t">Flare: a voice companion with a face</title>
+  <desc id="d">Dark poster. A flame mark and the name Flare on the left with the line "Hold the button. Say anything." Three stages on the right: Heard, Thought, Said.</desc>
+  <defs>
+    <linearGradient id="flame" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f7c491"/>
+      <stop offset="1" stop-color="#d9822f"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.72" cy="0.45" r="0.5">
+      <stop offset="0" stop-color="#f0a35b" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#f0a35b" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="520" rx="24" fill="#15120f"/>
+  <rect width="1200" height="520" rx="24" fill="url(#glow)"/>
+
+  <g transform="translate(72 72)">
+    <path transform="scale(2.6)" d="M12 2.5c.6 3.2 3.3 4.7 4.8 7.2 1.9 3.2 1.4 7.3-1.6 9.8-2.9 2.4-7.4 2.2-10-.5-2.9-3-2.6-7.8.5-10.5.3 1.7 1.2 2.7 2.4 3.3-.2-3.5 1.5-6.6 3.9-9.3Z" fill="url(#flame)"/>
+    <path transform="scale(2.6)" d="M12.2 11.2c.3 1.6 1.7 2.3 2.3 3.6.7 1.5.2 3.3-1.2 4.2-1.3.9-3.2.7-4.2-.5-1.1-1.3-.9-3.3.4-4.4.2.8.7 1.3 1.3 1.6-.2-1.7.4-3.2 1.4-4.5Z" fill="#15120f" fill-opacity="0.9"/>
+    <text x="80" y="46" font-family="'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif" font-size="44" font-weight="600" fill="#f3ebdd">Flare</text>
+    <text x="80" y="76" font-family="'Segoe UI', system-ui, sans-serif" font-size="18" fill="#c9bfb0">A voice companion with a face.</text>
+  </g>
+
+  <text x="72" y="250" font-family="'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif" font-size="54" font-weight="500" fill="#f3ebdd" letter-spacing="-1">
+    <tspan x="72" dy="0">Hold the button.</tspan>
+    <tspan x="72" dy="62">Say anything.</tspan>
+    <tspan x="72" dy="62">Flare looks up and answers.</tspan>
+  </text>
+  <text x="72" y="450" font-family="'Segoe UI', system-ui, sans-serif" font-size="17" fill="#8a8177">
+    Cloudflare Workers, D1 and Pages on free tiers. Whisper, Llama 3.1 and Kokoro via DeepInfra. Three.js in the browser.
+  </text>
+
+  <g font-family="'Segoe UI', system-ui, sans-serif">
+    <g transform="translate(760 150)">
+      <rect width="360" height="88" rx="14" fill="#1f1b17" stroke="#3a332c"/>
+      <text x="22" y="36" font-size="22" font-weight="600" fill="#f0a35b">1  Heard</text>
+      <text x="22" y="64" font-size="15" fill="#c9bfb0">Recorded on your device, transcribed by Whisper.</text>
+    </g>
+    <g transform="translate(760 258)">
+      <rect width="360" height="88" rx="14" fill="#1f1b17" stroke="#3a332c"/>
+      <text x="22" y="36" font-size="22" font-weight="600" fill="#8c9bc4">2  Thought</text>
+      <text x="22" y="64" font-size="15" fill="#c9bfb0">A reply with a mood, gesture and intensity, streamed.</text>
+    </g>
+    <g transform="translate(760 366)">
+      <rect width="360" height="88" rx="14" fill="#1f1b17" stroke="#3a332c"/>
+      <text x="22" y="36" font-size="22" font-weight="600" fill="#f7c491">3  Said</text>
+      <text x="22" y="64" font-size="15" fill="#c9bfb0">Spoken sentence by sentence, lips synced in the browser.</text>
+    </g>
+  </g>
+</svg>
