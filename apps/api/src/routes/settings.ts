@@ -1,68 +1,22 @@
 import { Hono } from 'hono';
-import { getOrCreateUser, updateUserDisplayName } from '@flare/db';
-import type { AppEnv, UpdateSettingsRequest } from '../types.js';
+import { updateSettingsRequestSchema, type SettingsResponse } from '@flare/contracts';
+import { getOrCreateUser, setUserDisplayName } from '@flare/db';
+import { validate } from '../middleware/validate.js';
+import type { AppEnv } from '../types.js';
 
 export const settingsRoutes = new Hono<AppEnv>();
 
-/**
- * GET /api/settings - Retrieve the authenticated user's profile and settings.
- */
+/** GET /api/settings: the caller's profile, created on first contact. */
 settingsRoutes.get('/', async (c) => {
-  const userId = c.get('userId');
-  const user = await getOrCreateUser(c.env.DB, userId);
-
-  return c.json({
-    user,
-  });
+  const user = await getOrCreateUser(c.env.DB, c.get('userId'));
+  const body: SettingsResponse = { user };
+  return c.json(body);
 });
 
-/**
- * PATCH /api/settings - Update the authenticated user's display name.
- */
-settingsRoutes.patch('/', async (c) => {
-  const userId = c.get('userId');
-
-  let body: UpdateSettingsRequest;
-  try {
-    body = await c.req.json<UpdateSettingsRequest>();
-  } catch {
-    return c.json(
-      {
-        error: 'BadRequest',
-        message: 'Invalid JSON request payload.',
-      },
-      400
-    );
-  }
-
-  if (!body || typeof body.displayName !== 'string' || body.displayName.trim().length === 0) {
-    return c.json(
-      {
-        error: 'BadRequest',
-        message: 'displayName must be a non-empty string.',
-      },
-      400
-    );
-  }
-
-  const trimmedDisplayName = body.displayName.trim();
-  if (trimmedDisplayName.length > 50) {
-    return c.json(
-      {
-        error: 'BadRequest',
-        message: 'displayName cannot exceed 50 characters.',
-      },
-      400
-    );
-  }
-
-  let updatedUser = await updateUserDisplayName(c.env.DB, userId, trimmedDisplayName);
-  if (!updatedUser) {
-    // If the user record did not exist yet, create it with the specified display name
-    updatedUser = await getOrCreateUser(c.env.DB, userId, trimmedDisplayName);
-  }
-
-  return c.json({
-    user: updatedUser,
-  });
+/** PATCH /api/settings: update the display name the companion uses. */
+settingsRoutes.patch('/', validate('json', updateSettingsRequestSchema), async (c) => {
+  const { displayName } = c.req.valid('json');
+  const user = await setUserDisplayName(c.env.DB, c.get('userId'), displayName);
+  const body: SettingsResponse = { user };
+  return c.json(body);
 });

@@ -1,135 +1,67 @@
 import { Hono } from 'hono';
 import {
-  listConversations,
-  getConversation,
-  getConversationMessages,
-  updateConversationTitle,
+  listConversationsQuerySchema,
+  updateConversationRequestSchema,
+  type ConversationDetailResponse,
+  type ListConversationsResponse,
+  type UpdateConversationResponse,
+} from '@flare/contracts';
+import {
   deleteConversation,
+  getConversation,
+  listConversations,
+  listMessages,
+  renameConversation,
 } from '@flare/db';
-import type { AppEnv, UpdateConversationRequest } from '../types.js';
+import { ApiError } from '../lib/errors.js';
+import { validate } from '../middleware/validate.js';
+import type { AppEnv } from '../types.js';
 
 export const conversationsRoutes = new Hono<AppEnv>();
 
-/**
- * GET /api/conversations - List all conversations for the authenticated user (for sidebar).
- */
-conversationsRoutes.get('/', async (c) => {
-  const userId = c.get('userId');
-  const limitQuery = c.req.query('limit');
-  const limit = limitQuery ? Math.min(Math.max(parseInt(limitQuery, 10) || 50, 1), 100) : 50;
-
-  const conversations = await listConversations(c.env.DB, userId, limit);
-
-  return c.json({
-    conversations,
-  });
+/** GET /api/conversations?limit&cursor: most recent first, keyset paginated. */
+conversationsRoutes.get('/', validate('query', listConversationsQuerySchema), async (c) => {
+  const { limit, cursor } = c.req.valid('query');
+  const page = await listConversations(c.env.DB, c.get('userId'), { limit, cursor });
+  const body: ListConversationsResponse = page;
+  return c.json(body);
 });
 
-/**
- * GET /api/conversations/:id - Retrieve a specific conversation and its messages.
- */
+/** GET /api/conversations/:id: the conversation with its full transcript. */
 conversationsRoutes.get('/:id', async (c) => {
-  const userId = c.get('userId');
-  const conversationId = c.req.param('id');
-
-  const conversation = await getConversation(c.env.DB, conversationId, userId);
+  const conversation = await getConversation(c.env.DB, c.req.param('id'), c.get('userId'));
   if (!conversation) {
-    return c.json(
-      {
-        error: 'NotFound',
-        message: 'Conversation not found.',
-      },
-      404
-    );
+    throw new ApiError('not_found', 'Conversation not found.');
   }
-
-  const messages = await getConversationMessages(c.env.DB, conversationId);
-
-  return c.json({
-    conversation,
-    messages,
-  });
+  const messages = await listMessages(c.env.DB, conversation.id);
+  const body: ConversationDetailResponse = { conversation, messages };
+  return c.json(body);
 });
 
-/**
- * PATCH /api/conversations/:id - Rename a conversation title.
- */
-conversationsRoutes.patch('/:id', async (c) => {
+/** PATCH /api/conversations/:id: rename. */
+conversationsRoutes.patch('/:id', validate('json', updateConversationRequestSchema), async (c) => {
+  const id = c.req.param('id');
   const userId = c.get('userId');
-  const conversationId = c.req.param('id');
+  const { title } = c.req.valid('json');
 
-  let body: UpdateConversationRequest;
-  try {
-    body = await c.req.json<UpdateConversationRequest>();
-  } catch {
-    return c.json(
-      {
-        error: 'BadRequest',
-        message: 'Invalid JSON request payload.',
-      },
-      400
-    );
+  const renamed = await renameConversation(c.env.DB, id, userId, title);
+  if (!renamed) {
+    throw new ApiError('not_found', 'Conversation not found.');
   }
 
-  if (!body || typeof body.title !== 'string' || body.title.trim().length === 0) {
-    return c.json(
-      {
-        error: 'BadRequest',
-        message: 'title must be a non-empty string.',
-      },
-      400
-    );
+  const conversation = await getConversation(c.env.DB, id, userId);
+  if (!conversation) {
+    throw new ApiError('not_found', 'Conversation not found.');
   }
-
-  const trimmedTitle = body.title.trim();
-  if (trimmedTitle.length > 100) {
-    return c.json(
-      {
-        error: 'BadRequest',
-        message: 'title cannot exceed 100 characters.',
-      },
-      400
-    );
-  }
-
-  const success = await updateConversationTitle(c.env.DB, conversationId, userId, trimmedTitle);
-  if (!success) {
-    return c.json(
-      {
-        error: 'NotFound',
-        message: 'Conversation not found or access denied.',
-      },
-      404
-    );
-  }
-
-  const updatedConversation = await getConversation(c.env.DB, conversationId, userId);
-
-  return c.json({
-    success: true,
-    conversation: updatedConversation,
-  });
+  const body: UpdateConversationResponse = { conversation };
+  return c.json(body);
 });
 
-/**
- * DELETE /api/conversations/:id - Delete a conversation and its messages.
- */
+/** DELETE /api/conversations/:id: removes the conversation and every message in it. */
 conversationsRoutes.delete('/:id', async (c) => {
-  const userId = c.get('userId');
-  const conversationId = c.req.param('id');
-
-  const success = await deleteConversation(c.env.DB, conversationId, userId);
-  if (!success) {
-    return c.json(
-      {
-        error: 'NotFound',
-        message: 'Conversation not found or access denied.',
-      },
-      404
-    );
+  const deleted = await deleteConversation(c.env.DB, c.req.param('id'), c.get('userId'));
+  if (!deleted) {
+    throw new ApiError('not_found', 'Conversation not found.');
   }
-
-  return c.json({
-    success: true,
-  });
+  return c.body(null, 204);
 });

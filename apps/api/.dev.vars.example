@@ -1,0 +1,14 @@
+# Copy to `.dev.vars` for `wrangler dev`. Never commit `.dev.vars`.
+
+# Preferred: the PEM public key from Clerk Dashboard -> API keys -> "Show JWT public key".
+# Enables networkless token verification (no JWKS fetch per cold start).
+CLERK_JWT_KEY="-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
+
+# Fallback if CLERK_JWT_KEY is not set: the Clerk secret key (sk_test_... / sk_live_...).
+# CLERK_SECRET_KEY=sk_test_...
+
+# DeepInfra API token (https://deepinfra.com/dash/api_keys).
+DEEPINFRA_API_KEY=...
+
+# Optional overrides for local development.
+# ALLOWED_ORIGINS=http://localhost:3000
