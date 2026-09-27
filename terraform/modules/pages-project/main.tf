@@ -29,14 +29,14 @@ variable "node_version" {
 }
 
 removed {
-  from = cloudflare_pages_project.this
+  from = cloudflare_pages_project.web
 
   lifecycle {
     destroy = false
   }
 }
 
-resource "cloudflare_pages_project" "web" {
+resource "cloudflare_pages_project" "ai" {
   account_id        = var.account_id
   name              = var.name
   production_branch = var.production_branch
@@ -62,11 +62,11 @@ resource "cloudflare_pages_project" "web" {
 }
 
 output "name" {
-  value = cloudflare_pages_project.web.name
+  value = cloudflare_pages_project.ai.name
 }
 
 output "subdomain" {
   description = "Default `*.pages.dev` hostname"
-  value       = cloudflare_pages_project.web.subdomain
+  value       = cloudflare_pages_project.ai.subdomain
 }
 

@@ -29,7 +29,7 @@ module "assets" {
 module "web" {
   source            = "./modules/pages-project"
   account_id        = var.cloudflare_account_id
-  name              = local.name_prefix
+  name              = "${local.name_prefix}-ai"
   production_branch = "main"
 }
 
