@@ -1,5 +1,7 @@
+# Stop searching parent directories for EditorConfig files
 root = true
 
+# Global rules for all files across the repository
 [*]
 charset = utf-8
 end_of_line = lf
@@ -8,5 +10,6 @@ indent_size = 2
 insert_final_newline = true
 trim_trailing_whitespace = true
 
+# Markdown files: preserve trailing spaces (two spaces indicate a line break)
 [*.md]
 trim_trailing_whitespace = false
