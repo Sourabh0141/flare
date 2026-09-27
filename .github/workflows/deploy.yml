@@ -105,4 +105,4 @@ jobs:
           npm run build --workspace=@flare/web
 
       - name: Deploy web client to Pages
-        run: npx wrangler pages deploy apps/web/out --project-name=flare-web --branch=main --commit-dirty=true
+        run: npx wrangler pages deploy apps/web/out --project-name=flare --branch=main --commit-dirty=true

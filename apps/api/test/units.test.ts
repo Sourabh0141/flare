@@ -13,20 +13,20 @@ import {
 
 describe('origin matcher', () => {
   const matches = createOriginMatcher(
-    parseAllowedOrigins(' https://flare.app, https://*.flare-web.pages.dev ,,')
+    parseAllowedOrigins(' https://flare.app, https://*.flare.pages.dev ,,')
   );
 
   it('matches exact and wildcard entries case-insensitively', () => {
     expect(matches('https://flare.app')).toBe(true);
     expect(matches('HTTPS://FLARE.APP')).toBe(true);
-    expect(matches('https://abc123.flare-web.pages.dev')).toBe(true);
+    expect(matches('https://abc123.flare.pages.dev')).toBe(true);
   });
 
   it('rejects near misses', () => {
     expect(matches('https://flare.app.evil.com')).toBe(false);
-    expect(matches('https://evil.flare-web.pages.dev.attacker.io')).toBe(false);
+    expect(matches('https://evil.flare.pages.dev.attacker.io')).toBe(false);
     expect(matches('http://flare.app')).toBe(false);
-    expect(matches('https://a.b.flare-web.pages.dev')).toBe(false);
+    expect(matches('https://a.b.flare.pages.dev')).toBe(false);
   });
 });
 

@@ -7,7 +7,7 @@ const LOCAL_DEV_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
 /**
  * Compiles the allowlist once. Entries may contain a single `*` wildcard in the host, for
- * example `https://*.flare-web.pages.dev`, which matches Pages preview deployments.
+ * example `https://*.flare.pages.dev`, which matches Pages preview deployments.
  */
 export function createOriginMatcher(allowed: string[]): (origin: string) => boolean {
   const exact = new Set<string>();

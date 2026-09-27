@@ -47,7 +47,7 @@
   // TURNSTILE_SECRET_KEY) are set with `wrangler secret put` and never live in this file.
   "vars": {
     "APP_VERSION": "1.1.0",
-    "ALLOWED_ORIGINS": "https://flare-web.pages.dev,https://*.flare-web.pages.dev,http://localhost:3000",
+    "ALLOWED_ORIGINS": "https://flare.pages.dev,https://*.flare.pages.dev,http://localhost:3000",
     "DAILY_TURN_LIMIT": "300",
     "DEEPINFRA_STT_MODEL": "openai/whisper-large-v3-turbo",
     "DEEPINFRA_LLM_MODEL": "meta-llama/Meta-Llama-3.1-8B-Instruct",
