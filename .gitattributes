@@ -1,6 +1,11 @@
+# Ensure consistent LF line endings across Windows, Linux, and macOS
 * text=auto eol=lf
+
+# 3D avatar assets and voice audio clips (prevent binary corruption)
 *.glb binary
 *.wav binary
+
+# Static image formats
 *.png binary
 *.jpg binary
 *.ico binary
