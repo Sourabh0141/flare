@@ -45,7 +45,3 @@ moved {
   to   = module.assets.cloudflare_r2_bucket.this
 }
 
-moved {
-  from = cloudflare_pages_project.frontend
-  to   = module.web.cloudflare_pages_project.this
-}

@@ -28,7 +28,15 @@ variable "node_version" {
   default     = "22"
 }
 
-resource "cloudflare_pages_project" "this" {
+removed {
+  from = cloudflare_pages_project.this
+
+  lifecycle {
+    destroy = false
+  }
+}
+
+resource "cloudflare_pages_project" "web" {
   account_id        = var.account_id
   name              = var.name
   production_branch = var.production_branch
@@ -54,10 +62,11 @@ resource "cloudflare_pages_project" "this" {
 }
 
 output "name" {
-  value = cloudflare_pages_project.this.name
+  value = cloudflare_pages_project.web.name
 }
 
 output "subdomain" {
   description = "Default `*.pages.dev` hostname"
-  value       = cloudflare_pages_project.this.subdomain
+  value       = cloudflare_pages_project.web.subdomain
 }
+
