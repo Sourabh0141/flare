@@ -1,18 +1,25 @@
+# Dependencies
 node_modules
+package-lock.json
+
+# Build output
 .next
 out
-dist
+
+# Wrangler local state
 .wrangler
-.terraform
+
+# Terraform
 *.tfstate*
-package-lock.json
-public/models
-.agents
+.terraform
+
+# Models and audio
 *.glb
 *.wav
-apps/web/next-env.d.ts
-apps/api/worker-configuration.d.ts
-apps/web/public/vad
-apps/web/public/_headers
 apps/web/models-src
-docs/poster.svg
+
+# Generated files
+apps/api/worker-configuration.d.ts
+apps/web/next-env.d.ts
+apps/web/public/_headers
+apps/web/public/vad
