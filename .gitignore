@@ -1,7 +1,5 @@
 # Dependencies
 node_modules/
-.pnp
-.pnp.js
 
 # Next.js & Frontend builds
 .next/
@@ -31,14 +29,10 @@ crash.*.log
 
 # Logs
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
 
 # Temporary files & caches
 .tmp/
 tmp/
-.turbo/
 .cache/
 
 # OS & Editor files
