@@ -291,8 +291,12 @@ export function Character({
     }
 
     // 4. Gaze: conversational target, pointer blended in, and the occasional glance away.
+    // The canvas reports pointer.x as -1 on the viewer's left and +1 on the right.
+    // Positive gaze x is the character's left, which is the viewer's right while the
+    // character faces the camera, so the pointer sign is already correct. Negating it
+    // makes the eyes and head look the opposite way.
     const pointerTarget = {
-      x: clamp(-pointer.x, -1, 1) * 0.8,
+      x: clamp(pointer.x, -1, 1) * 0.8,
       y: clamp(pointer.y, -1, 1) * 0.5,
     };
     const conversational = state === 'thinking' ? { x: 0.45, y: 0.5 } : { x: 0, y: 0.05 };
