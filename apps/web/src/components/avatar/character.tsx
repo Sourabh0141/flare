@@ -276,11 +276,18 @@ export function Character({
 
     mixer.update(delta);
 
-    // Offsets below are additive, so bones the clip does not animate start from rest.
-    for (const bone of [bones.head, bones.leftEye, bones.rightEye]) {
-      if (!bone || animatedBones.current.has(bone.name)) continue;
-      const rest = restRotations.get(bone.name);
-      if (rest) bone.rotation.copy(rest);
+    // Head offsets are additive, so a clip that does not animate the head starts from rest.
+    // Eye bones are always returned to the bind pose. The iris is painted on the front of
+    // the eyeball, and the idle clip contains eye tracks; rotating those bones turns the
+    // pupil out of the socket. Gaze moves the iris through the eyeLook shapes below.
+    if (bones.head && !animatedBones.current.has(bones.head.name)) {
+      const rest = restRotations.get(bones.head.name);
+      if (rest) bones.head.rotation.copy(rest);
+    }
+    for (const eye of [bones.leftEye, bones.rightEye]) {
+      if (!eye) continue;
+      const rest = restRotations.get(eye.name);
+      if (rest) eye.rotation.copy(rest);
     }
 
     // 4. Gaze: conversational target, pointer blended in, and the occasional glance away.
@@ -301,12 +308,6 @@ export function Character({
       wander,
       speed: state === 'thinking' ? 4 : glanceTarget ? 5 : 7,
     });
-
-    for (const eye of [bones.leftEye, bones.rightEye]) {
-      if (!eye) continue;
-      eye.rotation.y += look.x * 0.35;
-      eye.rotation.x += -look.y * 0.25;
-    }
 
     // 5. Head: follows the gaze a little, leans in while listening, plus gestures.
     if (bones.head) {
@@ -350,7 +351,7 @@ export function Character({
       const current = expressionWeights.current[name] ?? 0;
       expressionWeights.current[name] = current + (goal - current) * smoothing;
     }
-    // Eye-look shapes mirror the bone gaze so the iris texture follows too.
+    // Eye-look shapes slide the iris across the front of the eyeball.
     const lookUp = Math.max(0, look.y) * 0.6;
     const lookDown = Math.max(0, -look.y) * 0.6;
     const lookLeft = Math.max(0, look.x) * 0.7;
