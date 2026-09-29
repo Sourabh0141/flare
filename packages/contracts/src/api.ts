@@ -1,3 +1,4 @@
+import './zod-config';
 import { z } from 'zod';
 import { emotionSchema, gestureSchema } from './character';
 import {

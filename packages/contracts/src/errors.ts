@@ -1,3 +1,4 @@
+import './zod-config';
 import { z } from 'zod';
 
 export const API_ERROR_CODES = [

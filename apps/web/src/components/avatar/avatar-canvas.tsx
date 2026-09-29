@@ -44,7 +44,7 @@ export function AvatarCanvas({
       >
         <Suspense fallback={fallback ?? null}>
           <Canvas
-            shadows
+            shadows="percentage"
             dpr={[1, 1.75]}
             gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
             className="h-full w-full"

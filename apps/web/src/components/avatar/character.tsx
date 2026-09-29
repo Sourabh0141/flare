@@ -25,6 +25,7 @@ import {
   weightShift,
   type HeadGesture,
 } from '@/lib/character/behaviors';
+import { clipForScene } from '@/lib/character/clip-tracks';
 import {
   CLIPS,
   clipForGesture,
@@ -138,6 +139,13 @@ export function Character({
 
   // Animation mixer is driven manually so procedural offsets can be layered after it.
   const mixer = useMemo(() => new THREE.AnimationMixer(scene), [scene]);
+  const sceneNodeNames = useMemo(() => {
+    const names = new Set<string>();
+    scene.traverse((object) => {
+      if (object.name) names.add(object.name);
+    });
+    return names;
+  }, [scene]);
   const clips = useRef<Map<string, THREE.AnimationClip>>(new Map());
   const currentBase = useRef<THREE.AnimationAction | null>(null);
   const currentBaseName = useRef<string | null>(null);
@@ -153,13 +161,15 @@ export function Character({
   }, [bones]);
 
   useEffect(() => {
-    for (const clip of idle.animations) clips.current.set(clip.name, clip);
+    for (const clip of idle.animations) {
+      clips.current.set(clip.name, clipForScene(clip, sceneNodeNames));
+    }
     playBase(CLIPS.idle);
     return () => {
       mixer.stopAllAction();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idle.animations, mixer]);
+  }, [idle.animations, mixer, sceneNodeNames]);
 
   useEffect(() => {
     if (!fullAnimations) return;
@@ -168,7 +178,9 @@ export function Character({
       .loadAsync(MODEL_URLS.animations)
       .then((gltf) => {
         if (cancelled) return;
-        for (const clip of gltf.animations) clips.current.set(clip.name, clip);
+        for (const clip of gltf.animations) {
+          clips.current.set(clip.name, clipForScene(clip, sceneNodeNames));
+        }
       })
       .catch(() => {
         // The character keeps its idle clip; gestures simply fall back to procedural ones.
@@ -176,7 +188,7 @@ export function Character({
     return () => {
       cancelled = true;
     };
-  }, [fullAnimations]);
+  }, [fullAnimations, sceneNodeNames]);
 
   function playBase(name: string) {
     const clip = clips.current.get(name) ?? clips.current.get(CLIPS.idle);
