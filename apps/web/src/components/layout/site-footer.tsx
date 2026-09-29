@@ -24,7 +24,7 @@ export function SiteFooter() {
         </div>
         <nav
           aria-label="Footer"
-          className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm text-linen-dim sm:grid-cols-3"
+          className="grid grid-cols-[max-content_max-content] gap-x-8 gap-y-2 text-sm text-linen-dim sm:grid-cols-[max-content_max-content_max-content]"
         >
           {links.map((link) => (
             <Link key={link.href} href={link.href} className="hover:text-linen">
