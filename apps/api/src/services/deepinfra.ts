@@ -78,7 +78,8 @@ export class DeepInfraClient {
 
   constructor(options: DeepInfraClientOptions) {
     this.apiKey = options.apiKey.trim().replace(/^["']|["']$/g, '');
-    this.fetchImpl = options.fetchImpl ?? fetch;
+    const impl = options.fetchImpl ?? fetch;
+    this.fetchImpl = (input, init) => impl(input, init);
   }
 
   async transcribe(request: TranscriptionRequest): Promise<TranscriptionResult> {
@@ -284,9 +285,10 @@ export class DeepInfraClient {
     const headers = new Headers(init.headers);
     headers.set('authorization', `Bearer ${this.apiKey}`);
 
+    const fetchFn = this.fetchImpl;
     let response: Response;
     try {
-      response = await this.fetchImpl(`${BASE_URL}${path}`, { ...init, headers, signal });
+      response = await fetchFn(`${BASE_URL}${path}`, { ...init, headers, signal });
     } catch (error) {
       release();
       if (isTimeoutError(error)) {

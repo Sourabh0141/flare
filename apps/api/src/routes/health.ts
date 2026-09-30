@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import type { HealthResponse } from '@flare/contracts';
+import { DeepInfraClient } from '../services/deepinfra';
 import type { AppEnv } from '../types';
 
 export const healthRoutes = new Hono<AppEnv>();
@@ -55,10 +56,36 @@ healthRoutes.get('/diag', async (c) => {
     };
   }
 
+  let clientSpeechTest: Record<string, unknown> = {};
+  if (upstreamTest.reachable) {
+    try {
+      const client = new DeepInfraClient({ apiKey: rawKey });
+      const speech = await client.speak({
+        model: c.env.DEEPINFRA_TTS_MODEL || 'hexgrad/Kokoro-82M',
+        voice: 'af_heart',
+        text: 'Hello from Flare diagnostics.',
+      });
+      const bytes = await new Response(speech.body).arrayBuffer();
+      clientSpeechTest = {
+        ok: true,
+        audioBytes: bytes.byteLength,
+        contentType: speech.contentType,
+      };
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      clientSpeechTest = {
+        ok: false,
+        name: error.name,
+        message: error.message,
+      };
+    }
+  }
+
   return c.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     key: keyDiagnostics,
     deepinfra: upstreamTest,
+    clientSpeech: clientSpeechTest,
   });
 });
