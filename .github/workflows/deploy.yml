@@ -77,7 +77,14 @@ jobs:
           put_secret() {
             local name="$1" value="$2"
             if [ -n "$value" ]; then
-              printf '%s' "$value" | npx wrangler secret put "$name" --cwd apps/api
+              if [[ "$value" == *"<"* ]] || [[ "$value" == *">"* ]]; then
+                echo "::error::Secret $name contains unresolved placeholder brackets: $value"
+                exit 1
+              fi
+              # Trim leading/trailing whitespace or newlines from secret value
+              local trimmed
+              trimmed="$(printf '%s' "$value" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+              printf '%s' "$trimmed" | npx wrangler secret put "$name" --cwd apps/api
             else
               echo "Skipping $name (not set)"
             fi

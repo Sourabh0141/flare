@@ -77,7 +77,7 @@ export class DeepInfraClient {
   private readonly fetchImpl: typeof fetch;
 
   constructor(options: DeepInfraClientOptions) {
-    this.apiKey = options.apiKey;
+    this.apiKey = options.apiKey.trim().replace(/^["']|["']$/g, '');
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
@@ -296,18 +296,28 @@ export class DeepInfraClient {
           { cause: error }
         );
       }
-      throw new ApiError('upstream_error', `Could not reach the ${operation} service.`, {
-        cause: error,
-      });
+      const causeMsg = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+      throw new ApiError(
+        'upstream_error',
+        `Could not reach the ${operation} service (${causeMsg}).`,
+        {
+          cause: error,
+          details: { message: causeMsg, stack: error instanceof Error ? error.stack : undefined },
+        }
+      );
     }
 
     if (!response.ok) {
       const detail = await response.text().catch(() => '');
       release();
-      throw new ApiError('upstream_error', `The ${operation} service rejected the request.`, {
-        details: { status: response.status, body: detail.slice(0, 500) },
-        expose: false,
-      });
+      throw new ApiError(
+        'upstream_error',
+        `The ${operation} service rejected the request (${response.status}).`,
+        {
+          details: { status: response.status, body: detail.slice(0, 500) },
+          expose: false,
+        }
+      );
     }
 
     if (options.releaseOnHeaders) {

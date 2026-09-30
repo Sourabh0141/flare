@@ -48,7 +48,18 @@ export class Logger {
 
 function replaceErrors(_key: string, value: unknown): unknown {
   if (value instanceof Error) {
-    return { name: value.name, message: value.message, stack: value.stack };
+    const errorObj: Record<string, unknown> = {
+      name: value.name,
+      message: value.message,
+      stack: value.stack,
+    };
+    if ('cause' in value && value.cause !== undefined) {
+      errorObj.cause =
+        value.cause instanceof Error
+          ? { name: value.cause.name, message: value.cause.message, stack: value.cause.stack }
+          : value.cause;
+    }
+    return errorObj;
   }
   return value;
 }
