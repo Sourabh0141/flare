@@ -63,9 +63,11 @@ function clerkFrontendHost(publishableKey) {
 }
 
 function origin(url) {
+  if (!url) return null;
   try {
     return new URL(url).origin;
-  } catch {
+  } catch (err) {
+    console.warn(`prepare-public: could not parse origin from "${url}":`, err.message);
     return null;
   }
 }

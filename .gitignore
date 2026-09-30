@@ -50,3 +50,6 @@ apps/api/worker-configuration.d.ts
 apps/web/public/vad/
 apps/web/public/_headers
 apps/web/tsconfig.tsbuildinfo
+
+# Playwright MCP testing artifacts
+.playwright-mcp/

@@ -102,6 +102,10 @@ jobs:
             echo "::error::NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY and NEXT_PUBLIC_API_URL must be set"
             exit 1
           fi
+          if [[ "$NEXT_PUBLIC_API_URL" == *"<"* ]] || [[ "$NEXT_PUBLIC_API_URL" == *">"* ]]; then
+            echo "::error::NEXT_PUBLIC_API_URL contains unresolved placeholder brackets: $NEXT_PUBLIC_API_URL"
+            exit 1
+          fi
           npm run build --workspace=@flare/web
 
       - name: Deploy web client to Pages
